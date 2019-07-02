@@ -176,6 +176,9 @@ class eEVM(object):
                 num = num + EV.firing_degree(x) * EV.predict(x)
                 den = den + EV.firing_degree(x)
 
+        if den == 0:
+            return random()
+
         # Calculating the output
         output = num / den
 
