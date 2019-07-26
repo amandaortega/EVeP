@@ -129,25 +129,13 @@ class eEVM(object):
             X = np.concatenate([ev.X for ev in self.EVs])
             y = np.concatenate([ev.y for ev in self.EVs])
 
-            Xy = np.unique(np.concatenate((X, y), axis=1), axis=0)
-
-            return (Xy[:, : X.shape[1]], Xy[:, -1].reshape(-1, 1))
+            return (X, y)
         
         def get_X(self):
-            X = np.concatenate([ev.X for ev in self.EVs])
-            y = np.concatenate([ev.y for ev in self.EVs])
-
-            Xy = np.unique(np.concatenate((X, y), axis=1), axis=0)
-
-            return Xy[:, : X.shape[1]]            
+            return np.concatenate([ev.X for ev in self.EVs])           
 
         def get_y(self):
-            X = np.concatenate([ev.X for ev in self.EVs])
-            y = np.concatenate([ev.y for ev in self.EVs])
-
-            Xy = np.unique(np.concatenate((X, y), axis=1), axis=0)
-
-            return Xy[:, -1].reshape(-1, 1)                        
+            return np.concatenate([ev.y for ev in self.EVs])
 
         # Plot the probability of sample inclusion (psi-model) for each extreme value
         def plot(self, ax, marker, color, z_bottom):
@@ -198,11 +186,10 @@ class eEVM(object):
                 # obtém o valor extremo que representa a maior quantidade de pontos ainda não cobertos
                 ind = np.argmax(np.sum(diferenca, axis=1), axis=0)
 
-                # acrescenta os novos pontos cobertos
-                new_points = np.asarray(np.where(S[ind])).reshape(-1)
+                # add the new covered points that were not already covered by any other EV
+                new_points = np.setdiff1d(np.asarray(np.where(S[ind])).reshape(-1), C)
                 C = np.append(C, new_points)
                 C = C.astype(int)
-                C = np.unique(C)
 
                 # add the samples covered by the EV, excluding the origin point which was already added
                 new_points = new_points[new_points != ind]
