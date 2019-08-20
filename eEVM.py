@@ -14,8 +14,6 @@ import numpy.matlib
 from random import random
 from sklearn.linear_model import LinearRegression
 import sklearn.metrics
-from time import time
-from tqdm import tqdm
 
 class eEVM(object):
 
@@ -202,7 +200,7 @@ class eEVM(object):
                 self.EVs.append(EVs_temp[ind])
 
     # Model initialization
-    def __init__(self, figure_path, sigma=0.5, tau=75):
+    def __init__(self, sigma=0.5, tau=75):
         # Setting rule base history
         self.number_of_rules = list()        
 
@@ -212,8 +210,6 @@ class eEVM(object):
         # Setting EVM algorithm parameters
         self.sigma = sigma
         self.tau = tau
-
-        self.figure_path = figure_path
 
     # Return all the EVs and the respective model's index to which they belong
     def get_EVs(self):
@@ -265,7 +261,7 @@ class eEVM(object):
                 actual_i = actual_i + 1     
 
     # Plot the granules that form the antecedent part of the rules
-    def plot(self, figure_name):
+    def plot(self, name_figure):
         fig = pyplot.figure()
         ax = fig.add_subplot(111, projection='3d')
         z_bottom = -0.3
@@ -278,9 +274,12 @@ class eEVM(object):
 
         for i, m in enumerate(self.models):
             m.plot(ax, '.', colors(i), z_bottom)
+        
+        # Save figure
+        fig.savefig(name_figure)
 
-        pyplot.show()
-        pyplot.savefig(self.figure_path + '/' + figure_name + '.png')
+        # Close plot
+        pyplot.close(fig)
 
     # Predict the output given the input sample x
     def predict(self, x):
@@ -371,26 +370,3 @@ class eEVM(object):
 
         # Calculating statistics for a step k
         self.number_of_rules.append(len(self.models))        
-
-def eevm(X_min, X, X_max, y_min, y, y_max, refresh_rate, plot=-1, figure_path='/home'):
-    model = eEVM(figure_path)
-
-    predictions = np.zeros((y.shape[0], 1))
-
-    start_time = time()
-
-    for i in tqdm(range(y.shape[0])):
-        predictions[i, 0] = model.predict(X[i, :].reshape(1, -1))        
-        model.train(X_min[i, :].reshape(1, -1), X[i, :].reshape(1, -1), X_max[i, :].reshape(1, -1), y_min[i].reshape(1, -1), y[i].reshape(1, -1), y_max[i].reshape(1, -1))
-
-        if plot != -1:
-            if (i % plot) == 0:
-                model.plot(str(i) + '_a')
-        
-        if (i % refresh_rate) == 0:
-            model.refresh()
-
-            if plot != -1:
-                model.plot(str(i) + '_b')
-
-    return (predictions, model.number_of_rules[-1], time() - start_time, model.number_of_rules) 
