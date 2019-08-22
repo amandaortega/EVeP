@@ -55,14 +55,19 @@ except ValueError:
     sigma = 0.5
 
 try:
-    tau = int(input('Enter the tau (default value = 0.5): '))
+    tau = int(input('Enter the tau (default value = 75): '))
 except ValueError:
-    tau = 0.5
+    tau = 75
 
 try:
     refresh_rate = int(input('Enter the refresh_rate (default value = 50): '))
 except ValueError:
     refresh_rate = 50
+
+try:
+    window_size = int(input('Enter the size of the window (default value = 50): '))
+except ValueError:
+    window_size = 50
 
 for site in sites:
     mlflow.start_run()
@@ -97,29 +102,24 @@ for site in sites:
     mlflow.log_param("sigma", sigma)
     mlflow.log_param("tau", tau)
     mlflow.log_param("refresh_rate", refresh_rate)
+    mlflow.log_param("window_size", window_size)
 
-    model = eEVM()
+    model = eEVM(sigma, tau, refresh_rate, window_size)
 
     predictions = np.zeros((y.shape[0], 1))
 
     for i in tqdm(range(y.shape[0])):
         predictions[i, 0] = model.predict(X[i, :].reshape(1, -1))        
-        model.train(X_min[i, :].reshape(1, -1), X[i, :].reshape(1, -1), X_max[i, :].reshape(1, -1), y_min[i].reshape(1, -1), y[i].reshape(1, -1), y_max[i].reshape(1, -1))
+        model.train(X_min[i, :].reshape(1, -1), X[i, :].reshape(1, -1), X_max[i, :].reshape(1, -1), y_min[i].reshape(1, -1), y[i].reshape(1, -1), y_max[i].reshape(1, -1), np.array([[i]]))
 
         if plot_frequency != -1:
             if (i % plot_frequency) == 0:
-                model.plot(artifact_uri + str(i) + '_a.png')
-        
-        if (i % refresh_rate) == 0:
-            model.refresh()
-
-            if plot_frequency != -1:
-                model.plot(artifact_uri + str(i) + '_b.png')
+                model.plot(artifact_uri + str(i) + '.png')
 
     np.savetxt(artifact_uri + 'predictions.csv', predictions)
     np.savetxt(artifact_uri + 'rules.csv', model.number_of_rules)
     
     mlflow.log_metric('RMSE', sqrt(mean_squared_error(y, predictions)))
-    mlflow.log_metric('Average number of rules', np.mean(model.number_of_rules))
+    mlflow.log_metric('Mean_rules', np.mean(model.number_of_rules))
 
     mlflow.end_run()

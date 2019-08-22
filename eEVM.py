@@ -36,7 +36,7 @@ class eEVM(object):
             """
 
             # Initialization of a new instance of EV.
-            def __init__(self, x0, y0, tau):
+            def __init__(self, x0, y0, tau, step, window_size):
                 self.mr_x = libmr.MR()
                 self.mr_y = libmr.MR()
                 self.mr_xy = libmr.MR()
@@ -45,16 +45,21 @@ class eEVM(object):
                 self.y0 = y0
                 self.X = x0
                 self.y = y0
+                self.step = step
+                self.window_size = window_size
 
             # Add the sample(s) (X, y) as covered by the extreme vector. Remove repeated points.
-            def add_sample(self, X, y):
-                X = np.concatenate((self.X, X))                
-                y = np.concatenate((self.y, y))
+            def add_sample(self, X, y, step):
+                self.X = np.concatenate((self.X, X))                
+                self.y = np.concatenate((self.y, y))
+                self.step = np.concatenate((self.step, step))          
 
-                Xy = np.unique(np.concatenate((X, y), axis=1), axis=0)
+                if X.shape[0] > self.window_size:
+                    indexes = np.argsort(-step.reshape(-1))
 
-                self.X = Xy[:, : X.shape[1]]
-                self.y = Xy[:, -1].reshape(-1, 1)
+                    self.X = self.X[indexes[: self.window_size], :]
+                    self.y = self.y[indexes[: self.window_size]]
+                    self.step = self.step[indexes[: self.window_size]]
 
             # Calculate the firing degree of the sample to the psi curve
             def firing_degree(self, x=None, y=None):
@@ -106,16 +111,14 @@ class eEVM(object):
             def predict(self, x):
                 return LinearRegression().fit(self.X, self.y).predict(x)
 
-        def __init__(self, tau=75, sigma=0.5):
+        def __init__(self, tau=75, sigma=0.5, window_size=50):
             self.EVs = list()
             self.tau = tau
             self.sigma = sigma
+            self.window_size = window_size
 
-        def add_EV(self, x0, y0, X_ext, y_ext):
-            try:
-                self.EVs.append(self.EV(x0, y0, self.tau))
-            except:
-                print('para')
+        def add_EV(self, x0, y0, X_ext, y_ext, step):
+            self.EVs.append(self.EV(x0, y0, self.tau, step, self.window_size))
             self.EVs[-1].fit_x(sklearn.metrics.pairwise.pairwise_distances(x0, X_ext)[0])
             self.EVs[-1].fit_y(sklearn.metrics.pairwise.pairwise_distances(y0, y_ext)[0])
             self.EVs[-1].fit_xy(sklearn.metrics.pairwise.pairwise_distances(np.concatenate((x0, y0), axis=1), np.concatenate((X_ext, y_ext), axis=1))[0])
@@ -126,9 +129,13 @@ class eEVM(object):
         def get_samples(self):
             X = np.concatenate([ev.X for ev in self.EVs])
             y = np.concatenate([ev.y for ev in self.EVs])
+            step = np.concatenate([ev.step for ev in self.EVs])
 
-            return (X, y)
+            return (X, y, step)
         
+        def get_step(self):
+            return np.concatenate([ev.step for ev in self.EVs])        
+
         def get_X(self):
             return np.concatenate([ev.X for ev in self.EVs])           
 
@@ -141,7 +148,7 @@ class eEVM(object):
                 ev.plot(ax, marker, color, z_bottom, self.sigma)
 
         def refresh(self, X_ext, y_ext):
-            (X_in, y_in) = self.get_samples()
+            (X_in, y_in, step_in) = self.get_samples()
 
             self.EVs = list()
             EVs_temp = list()
@@ -154,7 +161,7 @@ class eEVM(object):
             # para cada amostra pertencente à classe Cl, estima os parâmetros shape e scale com base na metade da distância
             # das tau amostras mais próximas não pertencentes a Cl
             for i in range(X_in.shape[0]):
-                EVs_temp.append(self.EV(X_in[i, :].reshape(1, -1), y_in[i].reshape(1, -1), self.tau)) 
+                EVs_temp.append(self.EV(X_in[i, :].reshape(1, -1), y_in[i].reshape(1, -1), self.tau, step_in[i].reshape(1, -1), self.window_size)) 
                 EVs_temp[-1].fit_xy(D_xy[i])   
 
             Nl = X_in.shape[0]
@@ -168,30 +175,23 @@ class eEVM(object):
                 S[i, :] = S_i > self.sigma
             
             C = []
-            I = []
 
             # enquanto os pontos representados pelos valores extremos não abrangerem o universo das amostras
-            while (set(C) != set(U)):
-                # manipulações necessárias para que a matriz diferenca contenha 1 apenas quando há um 
-                # ponto ainda não coberto e que é representado por um valor extremo candidato
-                aux = np.zeros(Nl)
-                aux[C] = 1
-                diferenca = S - np.matlib.repmat(aux, Nl, 1)
-                diferenca[I] = np.zeros((len(I), Nl))
-                diferenca[:, I] = np.zeros((Nl, len(I)))
-                diferenca = np.clip(diferenca, 0, 1)
-                
+            while (set(C) != set(U)):                
                 # obtém o valor extremo que representa a maior quantidade de pontos ainda não cobertos
-                ind = np.argmax(np.sum(diferenca, axis=1), axis=0)
+                ind = np.argmax(np.sum(S, axis=1), axis=0)
 
                 # add the new covered points that were not already covered by any other EV
                 new_points = np.setdiff1d(np.asarray(np.where(S[ind])).reshape(-1), C)
                 C = np.append(C, new_points)
                 C = C.astype(int)
 
+                S[new_points, :] = np.zeros((len(new_points), Nl))
+                S[:, new_points] = np.zeros((Nl, len(new_points)))
+
                 # add the samples covered by the EV, excluding the origin point which was already added
                 new_points = new_points[new_points != ind]
-                EVs_temp[ind].add_sample(X_in[new_points], y_in[new_points])
+                EVs_temp[ind].add_sample(X_in[new_points], y_in[new_points], step_in[new_points])
 
                 EVs_temp[ind].fit_x(D[ind])
                 EVs_temp[ind].fit_y(D_y[ind])                
@@ -200,7 +200,7 @@ class eEVM(object):
                 self.EVs.append(EVs_temp[ind])
 
     # Model initialization
-    def __init__(self, sigma=0.5, tau=75):
+    def __init__(self, sigma=0.5, tau=75, refresh_rate=50, window_size=np.Inf):
         # Setting rule base history
         self.number_of_rules = list()        
 
@@ -210,6 +210,8 @@ class eEVM(object):
         # Setting EVM algorithm parameters
         self.sigma = sigma
         self.tau = tau
+        self.refresh_rate = refresh_rate
+        self.window_size = window_size
 
     # Return all the EVs and the respective model's index to which they belong
     def get_EVs(self):
@@ -246,7 +248,7 @@ class eEVM(object):
                 index_to_merge = np.where(S_index > self.sigma)[0] + index + 1
 
                 for i in reversed(range(len(index_to_merge))):
-                    EVs[index].add_sample(EVs[index_to_merge[i]].X, EVs[index_to_merge[i]].y)
+                    EVs[index].add_sample(EVs[index_to_merge[i]].X, EVs[index_to_merge[i]].y, EVs[index_to_merge[i]].step)
                     EVs = np.delete(EVs, index_to_merge[i])
                     del EVs_model_index[index_to_merge[i]]
         
@@ -325,11 +327,11 @@ class eEVM(object):
         return(EVs[new_order], np.array(EVs_model_index)[new_order].tolist())
 
     # Evolves the model (main method)
-    def train(self, x_min, x, x_max, y_min, y, y_max):
+    def train(self, x_min, x, x_max, y_min, y, y_max, step):
         # empty antecedents
         if len(self.models) == 0:
             self.models.append(self.Cluster(self.tau, self.sigma))
-            self.models[-1].add_EV(x, y, np.concatenate((x_min, x_max), axis=0), np.concatenate((y_min, y_max), axis=0))
+            self.models[-1].add_EV(x, y, np.concatenate((x_min, x_max), axis=0), np.concatenate((y_min, y_max), axis=0), step)
         else:
             best_EV = None
             best_EV_value = 0
@@ -353,20 +355,20 @@ class eEVM(object):
                     best_EV_y_value = firing_degrees_y[best_index_y]                    
             
             if best_EV is not None:
-                best_EV.add_sample(x, y)
+                best_EV.add_sample(x, y, step)
             else:
                 if best_model_y is not None:
                     (X_ext, y_ext) = self.get_external_samples(best_model_y)
-                    try:
-                        best_model_y.add_EV(x, y, np.concatenate((x_min, x_max, X_ext), axis=0), np.concatenate((y_min, y_max, y_ext), axis=0))
-                    except:
-                        print('para')
+                    best_model_y.add_EV(x, y, np.concatenate((x_min, x_max, X_ext), axis=0), np.concatenate((y_min, y_max, y_ext), axis=0), step)
                 else:
                     X_ext = np.concatenate([m.get_X() for m in self.models])
                     y_ext = np.concatenate([m.get_y() for m in self.models])
 
                     self.models.append(self.Cluster(self.tau, self.sigma))
-                    self.models[-1].add_EV(x, y, np.concatenate((x_min, x_max, X_ext), axis=0), np.concatenate((y_min, y_max, y_ext), axis=0))               
+                    self.models[-1].add_EV(x, y, np.concatenate((x_min, x_max, X_ext), axis=0), np.concatenate((y_min, y_max, y_ext), axis=0), step)               
+
+        if (step % self.refresh_rate) == 0:
+            self.refresh()
 
         # Calculating statistics for a step k
-        self.number_of_rules.append(len(self.models))        
+        self.number_of_rules.append(len(self.models))    
