@@ -69,16 +69,15 @@ try:
 except ValueError:
     window_size = 50
 
+register_experiment = input('Register the experiment? (default value = true): ')
+
+if register_experiment in ['No', 'no', 'false', 'False']:
+    register_experiment = False
+else:
+    register_experiment = True
+
 for site in sites:
-    mlflow.start_run()
-
-    print('Site ' + site)
-    mlflow.set_tag("site", site)
-
-    if plot_frequency == -1:
-        mlflow.set_tag("plots", 'no')
-    else:
-        mlflow.set_tag("plots", 'yes')
+    print('Site ' + site)    
     
     if dataset == 1:
         path = input_path + 'bases/' + site + '/' + str(dim)
@@ -94,15 +93,24 @@ for site in sites:
     y_min = read_csv(path + '/YSuppInf.csv', dataset)
     y_max = read_csv(path + '/YSuppSup.csv', dataset)    
 
-    artifact_uri = mlflow.get_artifact_uri()
-    # removing the 'file://'
-    artifact_uri = artifact_uri[7:] + '/'
+    if register_experiment:
+        mlflow.start_run()    
+        mlflow.set_tag("site", site)
 
-    mlflow.log_param("dim", dim)
-    mlflow.log_param("sigma", sigma)
-    mlflow.log_param("tau", tau)
-    mlflow.log_param("refresh_rate", refresh_rate)
-    mlflow.log_param("window_size", window_size)
+        if plot_frequency == -1:
+            mlflow.set_tag("plots", 'no')
+        else:
+            mlflow.set_tag("plots", 'yes')
+
+        artifact_uri = mlflow.get_artifact_uri()
+        # removing the 'file://'
+        artifact_uri = artifact_uri[7:] + '/'
+
+        mlflow.log_param("dim", dim)
+        mlflow.log_param("sigma", sigma)
+        mlflow.log_param("tau", tau)
+        mlflow.log_param("refresh_rate", refresh_rate)
+        mlflow.log_param("window_size", window_size)
 
     model = eEVM(sigma, tau, refresh_rate, window_size)
 
@@ -116,10 +124,11 @@ for site in sites:
             if (i % plot_frequency) == 0:
                 model.plot(artifact_uri + str(i) + '.png')
 
-    np.savetxt(artifact_uri + 'predictions.csv', predictions)
-    np.savetxt(artifact_uri + 'rules.csv', model.number_of_rules)
-    
-    mlflow.log_metric('RMSE', sqrt(mean_squared_error(y, predictions)))
-    mlflow.log_metric('Mean_rules', np.mean(model.number_of_rules))
+    if register_experiment:
+        np.savetxt(artifact_uri + 'predictions.csv', predictions)
+        np.savetxt(artifact_uri + 'rules.csv', model.number_of_rules)
+        
+        mlflow.log_metric('RMSE', sqrt(mean_squared_error(y, predictions)))
+        mlflow.log_metric('Mean_rules', np.mean(model.number_of_rules))
 
-    mlflow.end_run()
+        mlflow.end_run()

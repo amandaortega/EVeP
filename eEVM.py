@@ -245,8 +245,11 @@ class eEVM(object):
 
         return (X_ext, y_ext)
 
-    # Merge two EVs of different clusters whenever the origin of one is inside the sigma probability of inclusion of the the psi curve of the other
-    def merge(self, EVs, EVs_model_index):
+    # Merge two EVs of different clusters whenever the origin of one is inside the sigma probability of inclusion of the psi curve of the other
+    def merge(self):
+        (EVs, EVs_model_index) = self.get_EVs()
+        (EVs, EVs_model_index) = self.sort_EVs(EVs, EVs_model_index)    
+
         for index, EV in enumerate(EVs):
             if EVs[index + 1 :].size > 0:
                 x0 = np.concatenate([other_EV.x0 for other_EV in EVs[index + 1 :]])
@@ -322,11 +325,7 @@ class eEVM(object):
         if len(self.models) > 1:
             for m in self.models:
                 (X_ext, y_ext) = self.get_external_samples(m)
-                m.refresh(X_ext, y_ext)
-            
-            (EVs, EVs_model_index) = self.get_EVs()
-            (EVs, EVs_model_index) = self.sort_EVs(EVs, EVs_model_index)    
-            self.merge(EVs, EVs_model_index)
+                m.refresh(X_ext, y_ext)        
 
     # Sort the EVs based on the number of samples belonged to them
     def sort_EVs(self, EVs, EVs_model_index):
@@ -338,7 +337,7 @@ class eEVM(object):
     def train(self, x_min, x, x_max, y_min, y, y_max, step):
         # empty antecedents
         if len(self.models) == 0:
-            self.models.append(self.Cluster(self.tau, self.sigma))
+            self.models.append(self.Cluster(self.tau, self.sigma, self.window_size))
             self.models[-1].add_EV(x, y, np.concatenate((x_min, x_max), axis=0), np.concatenate((y_min, y_max), axis=0), step)
         else:
             best_EV = None
@@ -373,15 +372,16 @@ class eEVM(object):
                     X_ext = np.concatenate([m.get_X() for m in self.models])
                     y_ext = np.concatenate([m.get_y() for m in self.models])
 
-                    self.models.append(self.Cluster(self.tau, self.sigma))
+                    self.models.append(self.Cluster(self.tau, self.sigma, self.window_size))
                     self.models[-1].add_EV(x, y, np.concatenate((x_min, x_max, X_ext), axis=0), np.concatenate((y_min, y_max, y_ext), axis=0), step)               
 
                     best_model_y = self.models[-1]
             
-            self.update_EVs(best_model_y)
+            self.update_EVs(best_model_y)            
 
         if (step % self.refresh_rate) == 0:
             self.refresh()
+            self.merge()
 
         # Calculating statistics for a step k
         self.number_of_rules.append(len(self.models))    
