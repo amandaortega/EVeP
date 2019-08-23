@@ -70,6 +70,12 @@ class eEVM(object):
                 else:
                     return self.mr_xy.w_score_vector(sklearn.metrics.pairwise.pairwise_distances(np.concatenate((self.x0, self.y0), axis=1), np.concatenate((x, y), axis=1)).reshape(-1))
 
+            # Fit the psi curve of the EVs according to the external samples 
+            def fit(self, X_ext, y_ext):
+                self.fit_x(sklearn.metrics.pairwise.pairwise_distances(self.x0, X_ext)[0])
+                self.fit_y(sklearn.metrics.pairwise.pairwise_distances(self.y0, y_ext)[0])
+                self.fit_xy(sklearn.metrics.pairwise.pairwise_distances(np.concatenate((self.x0, self.y0), axis=1), np.concatenate((X_ext, y_ext), axis=1))[0])                
+
             # Fit the psi curve to the extreme values with distance D to the center of the EV
             def fit_x(self, D):
                 self.mr_x.fit_low(1/2 * D, min(D.shape[0], self.tau))   
@@ -119,9 +125,7 @@ class eEVM(object):
 
         def add_EV(self, x0, y0, X_ext, y_ext, step):
             self.EVs.append(self.EV(x0, y0, self.tau, step, self.window_size))
-            self.EVs[-1].fit_x(sklearn.metrics.pairwise.pairwise_distances(x0, X_ext)[0])
-            self.EVs[-1].fit_y(sklearn.metrics.pairwise.pairwise_distances(y0, y_ext)[0])
-            self.EVs[-1].fit_xy(sklearn.metrics.pairwise.pairwise_distances(np.concatenate((x0, y0), axis=1), np.concatenate((X_ext, y_ext), axis=1))[0])
+            self.EVs[-1].fit(X_ext, y_ext)
 
         def firing_degrees(self, x, y):
             return np.array([ev.firing_degree(x, y) for ev in self.EVs])
@@ -153,7 +157,7 @@ class eEVM(object):
             self.EVs = list()
             EVs_temp = list()
 
-            # calcula os pares de distâncias entre as amostras da classe atual, X_l, e as amostras das outras classes, X_m
+            # calcula os pares de distâncias entre as amostras da classe atual e as amostras das outras classes
             D = sklearn.metrics.pairwise.pairwise_distances(X_in, X_ext)
             D_y = sklearn.metrics.pairwise.pairwise_distances(y_in, y_ext)
             D_xy = sklearn.metrics.pairwise.pairwise_distances(np.concatenate((X_in, y_in), axis=1), np.concatenate((X_ext, y_ext), axis=1))
@@ -224,6 +228,10 @@ class eEVM(object):
             EV_model_index.extend([i] * how_many)
 
         return (EVs, EV_model_index)        
+
+    # Obtain the EVs that not belong to the cluster given by parameter but are part of the other clusters of the system
+    def get_external_EVs(self, cluster):
+        return np.concatenate([m.EVs for m in self.models if m != cluster])
 
     # Obtain the samples that not belong to the cluster given by parameter but are part of the other clusters of the system
     def get_external_samples(self, cluster):
@@ -350,6 +358,7 @@ class eEVM(object):
                 if firing_degrees[best_index] > best_EV_value and firing_degrees[best_index] > self.sigma:
                     best_EV = m.EVs[best_index]
                     best_EV_value = firing_degrees[best_index]
+                    best_model_y = m
                 elif firing_degrees_y[best_index_y] > best_EV_y_value and firing_degrees_y[best_index_y] > self.sigma:
                     best_model_y = m
                     best_EV_y_value = firing_degrees_y[best_index_y]                    
@@ -359,7 +368,7 @@ class eEVM(object):
             else:
                 if best_model_y is not None:
                     (X_ext, y_ext) = self.get_external_samples(best_model_y)
-                    best_model_y.add_EV(x, y, np.concatenate((x_min, x_max, X_ext), axis=0), np.concatenate((y_min, y_max, y_ext), axis=0), step)
+                    best_model_y.add_EV(x, y, np.concatenate((x_min, x_max, X_ext), axis=0), np.concatenate((y_min, y_max, y_ext), axis=0), step)                    
                 else:
                     X_ext = np.concatenate([m.get_X() for m in self.models])
                     y_ext = np.concatenate([m.get_y() for m in self.models])
@@ -367,8 +376,21 @@ class eEVM(object):
                     self.models.append(self.Cluster(self.tau, self.sigma))
                     self.models[-1].add_EV(x, y, np.concatenate((x_min, x_max, X_ext), axis=0), np.concatenate((y_min, y_max, y_ext), axis=0), step)               
 
+                    best_model_y = self.models[-1]
+            
+            self.update_EVs(best_model_y)
+
         if (step % self.refresh_rate) == 0:
             self.refresh()
 
         # Calculating statistics for a step k
         self.number_of_rules.append(len(self.models))    
+
+    # Update the psi curve of the EVs that do not belong to the model_selected
+    def update_EVs(self, model_selected):
+        for m in self.models:
+            if m != model_selected:
+                (X_ext, y_ext) = self.get_external_samples(m)
+
+                for EV in m.EVs:
+                    EV.fit(X_ext, y_ext)
