@@ -140,9 +140,14 @@ for site in sites:
         # Saving statistics for the step i
         number_of_clusters[i, 0] = model.get_number_of_clusters()
         number_of_EVs[i, 0] = model.get_number_of_EVs()
-        RMSE[i, 0] = sqrt(mean_squared_error(y[:i+1], predictions[:i+1]))
+        
+        if i == 0:
+            RMSE[i, 0] = sqrt(mean_squared_error(y[:i+1], predictions[:i+1]))
+        else:
+            # Desconsider the first prediction because there was no previous model 
+            RMSE[i, 0] = sqrt(mean_squared_error(y[1:i+1], predictions[1:i+1]))
 
-        if plot_frequency != -1:
+        if plot_frequency != -1: 
             if (i % plot_frequency) == 0:
                 model.plot(artifact_uri + str(i) + '.png')
 

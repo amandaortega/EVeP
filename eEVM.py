@@ -5,13 +5,11 @@
 """
 
 import libmr
-import matplotlib
 from matplotlib import pyplot, cm
 from matplotlib.patches import Circle
 from mpl_toolkits.mplot3d import Axes3D, art3d
 import numpy as np
 import numpy.matlib
-from random import random
 from sklearn.linear_model import LinearRegression
 import sklearn.metrics
 
@@ -304,7 +302,7 @@ class eEVM(object):
     def predict(self, x):
         # Checking for system prior knowledge
         if len(self.models) == 0:
-            return random()
+            return 0.5
 
         num = 0
         den = 0
@@ -315,7 +313,7 @@ class eEVM(object):
                 den = den + EV.firing_degree(x)
 
         if den == 0:
-            return random()
+            return 0.5
 
         # Calculating the output
         output = num / den
