@@ -204,10 +204,7 @@ class eEVM(object):
                 self.EVs.append(EVs_temp[ind])
 
     # Model initialization
-    def __init__(self, sigma=0.5, tau=75, refresh_rate=50, window_size=np.Inf):
-        # Setting rule base history
-        self.number_of_rules = list()        
-
+    def __init__(self, sigma=0.5, tau=75, refresh_rate=50, window_size=np.Inf):        
         # Setting local models
         self.models = list()
 
@@ -244,6 +241,15 @@ class eEVM(object):
         y_ext = unique_Xy[count == 1, X_all.shape[1] :]        
 
         return (X_ext, y_ext)
+
+
+    # Return the number of clusters existing in the model
+    def get_number_of_clusters(self):
+        return len(self.models)
+
+    # Return the total number of EVs existing in the model
+    def get_number_of_EVs(self):
+        return np.concatenate([m.EVs for m in self.models]).shape[0]
 
     # Merge two EVs of different clusters whenever the origin of one is inside the sigma probability of inclusion of the psi curve of the other
     def merge(self):
@@ -382,9 +388,6 @@ class eEVM(object):
         if (step % self.refresh_rate) == 0:
             self.refresh()
             self.merge()
-
-        # Calculating statistics for a step k
-        self.number_of_rules.append(len(self.models))    
 
     # Update the psi curve of the EVs that do not belong to the model_selected
     def update_EVs(self, model_selected):

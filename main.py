@@ -1,7 +1,7 @@
 import csv
 from eEVM import eEVM
 from math import sqrt
-from matplotlib import pyplot
+import matplotlib.pyplot as plt
 import mlflow
 import numpy as np
 from sklearn.metrics import mean_squared_error
@@ -21,6 +21,20 @@ def read_csv(file, dataset):
             database.append(row)
 
     return np.asarray(database).astype('float')
+
+def plot_graph(y, y_label, x_label, file_name, y_aux=None, legend=None, legend_aux=None):
+    plt.plot(y)
+    plt.ylabel(y_label)
+    plt.xlabel(x_label)    
+
+    if y_aux is not None:    
+        plt.plot(y_aux)
+        plt.legend([legend, legend_aux])
+    else:
+        plt.annotate(str(round(y[-1, 0], 3)), xy=(y.shape[0], y[-1, 0]), ha='center')
+    
+    plt.savefig(file_name)
+    plt.close()
 
 try:
     dataset = int(input('Enter the dataset to be tested:\n1- Wheater temperature\n2- Wind speed (default)\n'))
@@ -115,10 +129,18 @@ for site in sites:
     model = eEVM(sigma, tau, refresh_rate, window_size)
 
     predictions = np.zeros((y.shape[0], 1))
+    number_of_clusters = np.zeros((y.shape[0], 1))
+    number_of_EVs = np.zeros((y.shape[0], 1))
+    RMSE = np.zeros((y.shape[0], 1))
 
     for i in tqdm(range(y.shape[0])):
         predictions[i, 0] = model.predict(X[i, :].reshape(1, -1))        
         model.train(X_min[i, :].reshape(1, -1), X[i, :].reshape(1, -1), X_max[i, :].reshape(1, -1), y_min[i].reshape(1, -1), y[i].reshape(1, -1), y_max[i].reshape(1, -1), np.array([[i]]))
+
+        # Saving statistics for the step i
+        number_of_clusters[i, 0] = model.get_number_of_clusters()
+        number_of_EVs[i, 0] = model.get_number_of_EVs()
+        RMSE[i, 0] = sqrt(mean_squared_error(y[:i+1], predictions[:i+1]))
 
         if plot_frequency != -1:
             if (i % plot_frequency) == 0:
@@ -126,9 +148,14 @@ for site in sites:
 
     if register_experiment:
         np.savetxt(artifact_uri + 'predictions.csv', predictions)
-        np.savetxt(artifact_uri + 'rules.csv', model.number_of_rules)
+        np.savetxt(artifact_uri + 'clusters.csv', number_of_clusters)
+        np.savetxt(artifact_uri + 'EVs.csv', number_of_EVs)
+
+        plot_graph(number_of_clusters, 'Quantity', 'Step', artifact_uri + 'rules.png', number_of_EVs, "Number of clusters", 'Number of EVs')
+        plot_graph(RMSE, 'RMSE', 'Step', artifact_uri + 'RMSE.png')
         
-        mlflow.log_metric('RMSE', sqrt(mean_squared_error(y, predictions)))
-        mlflow.log_metric('Mean_rules', np.mean(model.number_of_rules))
+        mlflow.log_metric('RMSE', RMSE[-1, 0])
+        mlflow.log_metric('Mean_clusters', np.mean(number_of_clusters))
+        mlflow.log_metric('Mean_EVs', np.mean(number_of_EVs))
 
         mlflow.end_run()
