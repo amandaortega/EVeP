@@ -45,6 +45,7 @@ class eEVM(object):
                 self.y = y0
                 self.step = step
                 self.window_size = window_size
+                self.last_update = np.max(step)
 
             # Add the sample(s) (X, y) as covered by the extreme vector. Remove repeated points.
             def add_sample(self, X, y, step):
@@ -58,6 +59,8 @@ class eEVM(object):
                     self.X = self.X[indexes[: self.window_size], :]
                     self.y = self.y[indexes[: self.window_size]]
                     self.step = self.step[indexes[: self.window_size]]
+                
+                self.last_update = np.max(step)
 
             # Calculate the firing degree of the sample to the psi curve
             def firing_degree(self, x=None, y=None):
@@ -193,13 +196,28 @@ class eEVM(object):
 
                 # add the samples covered by the EV, excluding the origin point which was already added
                 new_points = new_points[new_points != ind]
-                EVs_temp[ind].add_sample(X_in[new_points], y_in[new_points], step_in[new_points])
 
-                EVs_temp[ind].fit_x(D[ind])
-                EVs_temp[ind].fit_y(D_y[ind])                
+                # if it isn't an outlier
+                if new_points.shape[0] > 0:
+                    EVs_temp[ind].add_sample(X_in[new_points], y_in[new_points], step_in[new_points])
 
-                # acrescenta o novo valor extremo ao conjunto
-                self.EVs.append(EVs_temp[ind])
+                    EVs_temp[ind].fit_x(D[ind])
+                    EVs_temp[ind].fit_y(D_y[ind])                
+
+                    # acrescenta o novo valor extremo ao conjunto
+                    self.EVs.append(EVs_temp[ind])
+
+        # Remove the EVs that didn't have any update in the last threshold steps
+        def remove_outdated_EVs(self, threshold):
+            index = 0
+
+            while index < len(self.EVs):
+                EV = self.EVs[index]
+
+                if EV.last_update <= threshold:
+                    self.EVs.remove(EV)
+                else:
+                    index = index + 1                
 
     # Model initialization
     def __init__(self, sigma=0.5, tau=75, refresh_rate=50, window_size=np.Inf):        
@@ -251,6 +269,8 @@ class eEVM(object):
 
     # Merge two EVs of different clusters whenever the origin of one is inside the sigma probability of inclusion of the psi curve of the other
     def merge(self):
+        merged = False
+
         (EVs, EVs_model_index) = self.get_EVs()
         (EVs, EVs_model_index) = self.sort_EVs(EVs, EVs_model_index)    
 
@@ -263,19 +283,23 @@ class eEVM(object):
                 index_to_merge = np.where(S_index > self.sigma)[0] + index + 1
 
                 for i in reversed(range(len(index_to_merge))):
+                    merged = True
                     EVs[index].add_sample(EVs[index_to_merge[i]].X, EVs[index_to_merge[i]].y, EVs[index_to_merge[i]].step)
                     EVs = np.delete(EVs, index_to_merge[i])
                     del EVs_model_index[index_to_merge[i]]
-        
-        actual_i = 0
 
-        # remove the models that don't have any EV and update the EVs of those which remain
-        for i in range(len(self.models)):
-            if i not in EVs_model_index:
-                del self.models[actual_i]
-            else:
-                self.models[actual_i].EVs = EVs[[j for j, x in enumerate(EVs_model_index) if x == i]].tolist()
-                actual_i = actual_i + 1     
+        if merged:        
+            actual_i = 0
+
+            # remove the models that don't have any EV and update the EVs of those which remain
+            for i in range(len(self.models)):
+                if i not in EVs_model_index:
+                    del self.models[actual_i]
+                else:
+                    self.models[actual_i].EVs = EVs[[j for j, x in enumerate(EVs_model_index) if x == i]].tolist()
+                    actual_i = actual_i + 1     
+            
+            self.refresh()
 
     # Plot the granules that form the antecedent part of the rules
     def plot(self, name_figure):
@@ -327,9 +351,30 @@ class eEVM(object):
     # Refresh the EVs of each cluster based on the distribution of the samples
     def refresh(self):
         if len(self.models) > 1:
-            for m in self.models:
+            index = 0
+
+            while index < len(self.models):
+                m = self.models[index]
                 (X_ext, y_ext) = self.get_external_samples(m)
-                m.refresh(X_ext, y_ext)        
+                m.refresh(X_ext, y_ext)      
+
+                if len(m.EVs) == 0:
+                    self.models.remove(m)
+                else:
+                    index = index + 1
+
+    def remove_outdated_EVs(self, step): 
+        index = 0
+
+        while index < len(self.models):
+            cluster = self.models[index]
+            cluster.remove_outdated_EVs(step - self.refresh_rate)
+
+            # there is no more EV in the current cluster
+            if len(cluster.EVs) == 0:
+                self.models.remove(cluster)
+            else:
+                index = index + 1            
 
     # Sort the EVs based on the number of samples belonged to them
     def sort_EVs(self, EVs, EVs_model_index):
@@ -383,8 +428,8 @@ class eEVM(object):
             
             self.update_EVs(best_model_y)            
 
-        if (step % self.refresh_rate) == 0:
-            self.refresh()
+        if step != 0 and (step % self.refresh_rate) == 0:      
+            self.remove_outdated_EVs(step[0, 0])      
             self.merge()
 
     # Update the psi curve of the EVs that do not belong to the model_selected

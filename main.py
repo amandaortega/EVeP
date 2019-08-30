@@ -38,9 +38,9 @@ def plot_graph(y, y_label, x_label, file_name, y_aux=None, legend=None, legend_a
 
 def run():
     try:
-        dataset = int(input('Enter the dataset to be tested:\n1- Wheater temperature\n2- Wind speed (default)\n'))
+        dataset = int(input('Enter the dataset to be tested:\n1- Wheater temperature (default)\n2- Wind speed\n'))
     except ValueError:
-        dataset = 2
+        dataset = 1
 
     if dataset == 1:
         sites = ["DeathValley", "Ottawa", "Lisbon"]
@@ -52,9 +52,9 @@ def run():
         mlflow.set_experiment('Wind speed')
 
     try:
-        dim = int(input('Enter the number of dimensions of the input (default value = 2): '))
+        dim = int(input('Enter the number of dimensions of the input (default value = 12): '))
     except ValueError:
-        dim = 2
+        dim = 12
 
     if dim == 2:
         try:
