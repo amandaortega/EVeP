@@ -65,7 +65,7 @@ def run():
         plot_frequency = -1
 
     try:
-        sigma = int(input('Enter the sigma (default value = 0.5): '))
+        sigma = float(input('Enter the sigma (default value = 0.5): '))
     except ValueError:
         sigma = 0.5
 
