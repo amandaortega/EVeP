@@ -159,6 +159,7 @@ def run():
 
             plot_graph(number_of_clusters, 'Quantity', 'Step', artifact_uri + 'rules.png', number_of_EVs, "Number of clusters", 'Number of EVs')
             plot_graph(RMSE, 'RMSE', 'Step', artifact_uri + 'RMSE.png')
+            plot_graph(y, 'Prediction', 'Step', artifact_uri + 'predictions.png', predictions, "y", "p")
             
             mlflow.log_metric('RMSE', RMSE[-1, 0])
             mlflow.log_metric('Mean_clusters', np.mean(number_of_clusters))
