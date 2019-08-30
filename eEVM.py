@@ -342,7 +342,7 @@ class eEVM(object):
         # Calculating the output
         output = num / den
 
-        if output[0] > 1:
+        if np.absolute(output[0]) > 1:
             return 1./np.absolute(output[0])
         elif output[0] < 0:
             return np.absolute(output[0])
