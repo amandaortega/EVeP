@@ -10,7 +10,6 @@ from matplotlib.patches import Circle
 from mpl_toolkits.mplot3d import Axes3D, art3d
 import numpy as np
 import numpy.matlib
-from sklearn.linear_model import LinearRegression
 import sklearn.metrics
 
 class eEVM(object):
@@ -20,7 +19,7 @@ class eEVM(object):
     Ruled-based predictor with EVM at the definition of the antecedent of the rules.    
     1. Create a new instance and provide the model parameters;
     2. Call the predict(x) method to make predictions based on the given input;
-    3. Call the evolve(x, y) method to evolve the model based on the new input-output pair.
+    3. Call the train(x, y) method to evolve the model based on the new input-output pair.
     """
 
     class Cluster(object):
@@ -47,20 +46,25 @@ class eEVM(object):
                 self.window_size = window_size
                 self.last_update = np.max(step)
 
+                # coefficients of the consequent part
+                self.theta = np.zeros_like(x0)
+                self.theta = np.insert(self.theta, 0, y0, axis=1).T
+
             # Add the sample(s) (X, y) as covered by the extreme vector. Remove repeated points.
             def add_sample(self, X, y, step):
                 self.X = np.concatenate((self.X, X))                
                 self.y = np.concatenate((self.y, y))
                 self.step = np.concatenate((self.step, step))          
 
-                if X.shape[0] > self.window_size:
-                    indexes = np.argsort(-step.reshape(-1))
+                if self.X.shape[0] > self.window_size:
+                    indexes = np.argsort(-self.step.reshape(-1))
 
                     self.X = self.X[indexes[: self.window_size], :]
                     self.y = self.y[indexes[: self.window_size]]
                     self.step = self.step[indexes[: self.window_size]]
                 
-                self.last_update = np.max(step)
+                self.last_update = np.max(self.step)
+                self.theta = np.linalg.lstsq(np.insert(self.X, 0, 1, axis=1), self.y)[0]
 
             # Calculate the firing degree of the sample to the psi curve
             def firing_degree(self, x=None, y=None):
@@ -116,7 +120,7 @@ class eEVM(object):
 
             # Predict the local output of x based on the linear regression of the samples stored at the EV
             def predict(self, x):
-                return LinearRegression().fit(self.X, self.y).predict(x)
+                return np.insert(x, 0, 1).reshape(1, -1) @ self.theta
 
         def __init__(self, tau=75, sigma=0.5, window_size=50):
             self.EVs = list()
@@ -337,16 +341,32 @@ class eEVM(object):
                 den = den + EV.firing_degree(x)
 
         if den == 0:
-            return 0.5
+            return np.mean(x)
 
-        # Calculating the output
-        output = num / den
+        return num / den
 
-        if np.absolute(output[0]) > 1:
-            return 1./np.absolute(output[0])
-        elif output[0] < 0:
-            return np.absolute(output[0])
-        return output[0]          
+        # # Calculating the output
+        # output = num / den
+
+        # if np.absolute(output[0]) > 1:
+        #     num = 0
+        #     den = 0            
+        #     for cluster in self.models:
+        #         for EV in cluster.EVs:
+        #             num = num + EV.firing_degree(x) * EV.predict(x)
+        #             den = den + EV.firing_degree(x)            
+
+        #     return 1./np.absolute(output[0])
+        # elif output[0] < 0:
+        #     num = 0
+        #     den = 0            
+        #     for cluster in self.models:
+        #         for EV in cluster.EVs:
+        #             num = num + EV.firing_degree(x) * EV.predict(x)
+        #             den = den + EV.firing_degree(x)            
+
+        #     return np.absolute(output[0])
+        # return output[0]          
 
     # Refresh the EVs of each cluster based on the distribution of the samples
     def refresh(self):
@@ -438,5 +458,6 @@ class eEVM(object):
             if m != model_selected:
                 (X_ext, y_ext) = self.get_external_samples(m)
 
-                for EV in m.EVs:
-                    EV.fit(X_ext, y_ext)
+                if X_ext.shape[0] > 0:
+                    for EV in m.EVs:       
+                        EV.fit(X_ext, y_ext) 

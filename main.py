@@ -7,12 +7,18 @@ import numpy as np
 from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 
+PLANT_IDENTIFICATION = 1
+MACKEY_GLASS = 2
+SP_500 = 3
+TEMPERATURE = 4
+WIND = 5
+
 def read_csv(file, dataset):
     database = []
 
-    if dataset == 1:
+    if dataset in [TEMPERATURE, PLANT_IDENTIFICATION, MACKEY_GLASS, SP_500]:
         delimiter = ','
-    else:
+    elif dataset == WIND:
         delimiter = ' '
 
     with open(file, newline='') as csvfile:
@@ -36,33 +42,42 @@ def plot_graph(y, y_label, x_label, file_name, y_aux=None, legend=None, legend_a
     plt.savefig(file_name)
     plt.close()
 
-def run():
+def read_parameters():
     try:
-        dataset = int(input('Enter the dataset to be tested:\n1- Wheater temperature (default)\n2- Wind speed\n'))
+        dataset = int(input('Enter the dataset to be tested:\n1- Nonlinear Dynamic Plant Identification With Time-VaryingCharacteristics\n' + 
+        '2- Mackey–Glass Chaotic Time Series (Long-Term Prediction)\n 3- Online Prediction of S&P 500 Daily Closing Price\n' + 
+        '4- Wheater temperature (default)\n5- Wind speed\n'))
     except ValueError:
-        dataset = 1
+        dataset = TEMPERATURE
 
-    if dataset == 1:
+    if dataset == PLANT_IDENTIFICATION:
+        sites = ['Default']
+        input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/Nonlinear_Dynamic_Plant_Identification_With_Time-Varying_Characteristics/'
+        experiment_name = 'Nonlinear Dynamic Plant Identification With Time-Varying Characteristics'
+    elif dataset == MACKEY_GLASS:
+        sites = ['Default']
+        input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/Mackey_Glass/'
+        experiment_name = 'Mackey Glass'
+    elif dataset == SP_500:
+        sites = ['Default']
+        input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/SP_500_Daily_Closing_Price/'
+        experiment_name = 'SP 500 Daily Closing Price'
+    elif dataset == TEMPERATURE:
         sites = ["DeathValley", "Ottawa", "Lisbon"]
         input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/temperatura/'
-        mlflow.set_experiment('Wheater temperature')
+        experiment_name = 'Wheater temperature'
     else:
         sites = ["9773", "9851", "10245", "10290", "10404", "33928", "34476", "35020", "36278", "37679", "120525", "121246", "121466", "122379", "124266"]
         input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/vento/USA/'
-        mlflow.set_experiment('Wind speed')
+        experiment_name = 'Wind speed'
 
-    try:
-        dim = int(input('Enter the number of dimensions of the input (default value = 12): '))
-    except ValueError:
-        dim = 12
-
-    if dim == 2:
+    if dataset == TEMPERATURE or dataset == WIND:
         try:
-            plot_frequency = int(input('Enter the frequency to generate the plots (-1 in case of no plots, default = 50): '))
+            dim = int(input('Enter the number of dimensions of the input (default value = 12): '))
         except ValueError:
-            plot_frequency = -1
+            dim = 12
     else:
-        plot_frequency = -1
+        dim = -1
 
     try:
         sigma = float(input('Enter the sigma (default value = 0.5): '))
@@ -90,23 +105,56 @@ def run():
         register_experiment = False
     else:
         register_experiment = True
+    
+    try:
+        plot_frequency = int(input('Enter the frequency to generate the plots (default = -1 in case of no plots): '))
+    except ValueError:
+        plot_frequency = -1
+    
+    return [dataset, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, register_experiment, plot_frequency]
+
+def run(dataset, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, register_experiment, training, plot_frequency):
+    mlflow.set_experiment(experiment_name)
 
     for site in sites:
         print('Site ' + site)    
         
-        if dataset == 1:
-            path = input_path + 'bases/' + site + '/' + str(dim)
-        else:
-            path = input_path + 'bases/' + site + '/wind_speed/hour/' + site + '-2012/' + str(dim)
+        if dataset in [PLANT_IDENTIFICATION, MACKEY_GLASS, SP_500]:
+            if training:
+                X = read_csv(input_path + 'base/X_train.csv', dataset)
+                y = read_csv(input_path + 'base/Y_train.csv', dataset)
+            else:
+                X = read_csv(input_path + 'base/X_test.csv', dataset)
+                y = read_csv(input_path + 'base/Y_test.csv', dataset)                
 
-        X  = read_csv(path + '/X_real.csv', dataset)
-        y  = read_csv(path + '/Y_real.csv', dataset).reshape(-1)        
+            X_min = X
+            X_max = X
+                            
+            y_min = y
+            y_max = y                
 
-        X_min = read_csv(path + '/XSuppInf.csv', dataset)
-        X_max = read_csv(path + '/XSuppSup.csv', dataset)
-        
-        y_min = read_csv(path + '/YSuppInf.csv', dataset)
-        y_max = read_csv(path + '/YSuppSup.csv', dataset)    
+        elif dataset in [TEMPERATURE, WIND]:
+            if dataset == TEMPERATURE:
+                path = input_path + 'bases/' + site + '/' + str(dim)
+            else:
+                if training:
+                    path = input_path + 'bases/' + site + '/wind_speed/hour/' + site + '-2011/' + str(dim)
+                else:
+                    path = input_path + 'bases/' + site + '/wind_speed/hour/' + site + '-2012/' + str(dim)
+
+            X  = read_csv(path + '/X_real.csv', dataset)
+            y  = read_csv(path + '/Y_real.csv', dataset).reshape(-1)        
+
+            X_min = read_csv(path + '/XSuppInf.csv', dataset)
+            X_max = read_csv(path + '/XSuppSup.csv', dataset)
+            
+            y_min = read_csv(path + '/YSuppInf.csv', dataset)
+            y_max = read_csv(path + '/YSuppSup.csv', dataset)    
+
+        dim = X.shape[1]
+
+        if dim != 2:
+            plot_frequency = -1
 
         if register_experiment:
             mlflow.start_run()    
@@ -162,10 +210,13 @@ def run():
             plot_graph(y, 'Prediction', 'Step', artifact_uri + 'predictions.png', predictions, "y", "p")
             
             mlflow.log_metric('RMSE', RMSE[-1, 0])
-            mlflow.log_metric('Mean_clusters', np.mean(number_of_clusters))
+            mlflow.log_metric('NDEI', RMSE[-1, 0] / np.std(y))            
+            mlflow.log_metric('Mean_clusters', np.mean(number_of_clusters))        
             mlflow.log_metric('Mean_EVs', np.mean(number_of_EVs))
+            mlflow.log_metric('Last_No_EV', number_of_EVs[-1, 0])
 
             mlflow.end_run()        
 
 if __name__ == "__main__":
-    run()
+    [dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, register_experiment, plot_frequency] = read_parameters()
+    run(dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, register_experiment, False, plot_frequency)
