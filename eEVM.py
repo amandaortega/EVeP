@@ -330,43 +330,23 @@ class eEVM(object):
     def predict(self, x):
         # Checking for system prior knowledge
         if len(self.models) == 0:
-            return 0.5
+            return np.mean(x)
 
         num = 0
         den = 0
 
         for cluster in self.models:
             for EV in cluster.EVs:
-                num = num + EV.firing_degree(x) * EV.predict(x)
-                den = den + EV.firing_degree(x)
+                p = EV.predict(x)
+
+                if EV.firing_degree(y=p) > self.sigma:
+                    num = num + EV.firing_degree(x) * p
+                    den = den + EV.firing_degree(x)
 
         if den == 0:
             return np.mean(x)
 
         return num / den
-
-        # # Calculating the output
-        # output = num / den
-
-        # if np.absolute(output[0]) > 1:
-        #     num = 0
-        #     den = 0            
-        #     for cluster in self.models:
-        #         for EV in cluster.EVs:
-        #             num = num + EV.firing_degree(x) * EV.predict(x)
-        #             den = den + EV.firing_degree(x)            
-
-        #     return 1./np.absolute(output[0])
-        # elif output[0] < 0:
-        #     num = 0
-        #     den = 0            
-        #     for cluster in self.models:
-        #         for EV in cluster.EVs:
-        #             num = num + EV.firing_degree(x) * EV.predict(x)
-        #             den = den + EV.firing_degree(x)            
-
-        #     return np.absolute(output[0])
-        # return output[0]          
 
     # Refresh the EVs of each cluster based on the distribution of the samples
     def refresh(self):
@@ -376,10 +356,17 @@ class eEVM(object):
             while index < len(self.models):
                 m = self.models[index]
                 (X_ext, y_ext) = self.get_external_samples(m)
-                m.refresh(X_ext, y_ext)      
 
-                if len(m.EVs) == 0:
-                    self.models.remove(m)
+                if X_ext.shape[0] > 1:
+                    m.refresh(X_ext, y_ext)                     
+
+                    if len(m.EVs) == 0:
+                        self.models.remove(m)
+
+                        if len(self.models) == 1:
+                            break
+                    else:
+                        index = index + 1
                 else:
                     index = index + 1
 
@@ -450,6 +437,7 @@ class eEVM(object):
 
         if step != 0 and (step % self.refresh_rate) == 0:      
             self.remove_outdated_EVs(step[0, 0])      
+
             self.merge()
 
     # Update the psi curve of the EVs that do not belong to the model_selected

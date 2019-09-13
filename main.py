@@ -45,7 +45,7 @@ def plot_graph(y, y_label, x_label, file_name, y_aux=None, legend=None, legend_a
 def read_parameters():
     try:
         dataset = int(input('Enter the dataset to be tested:\n1- Nonlinear Dynamic Plant Identification With Time-VaryingCharacteristics\n' + 
-        '2- Mackey–Glass Chaotic Time Series (Long-Term Prediction)\n 3- Online Prediction of S&P 500 Daily Closing Price\n' + 
+        '2- Mackey–Glass Chaotic Time Series (Long-Term Prediction)\n3- Online Prediction of S&P 500 Daily Closing Price\n' + 
         '4- Wheater temperature (default)\n5- Wind speed\n'))
     except ValueError:
         dataset = TEMPERATURE
