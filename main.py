@@ -1,5 +1,6 @@
 import csv
 from eEVM import eEVM
+from eEVM_RLS import eEVM_RLS
 from math import sqrt
 import matplotlib.pyplot as plt
 import mlflow
@@ -7,11 +8,17 @@ import numpy as np
 from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
 
+# databases IDs
 PLANT_IDENTIFICATION = 1
 MACKEY_GLASS = 2
 SP_500 = 3
 TEMPERATURE = 4
 WIND = 5
+
+# algorithm versions
+BATCH = 1
+RLS = 2
+RLS_MOD = 3
 
 def read_csv(file, dataset):
     database = []
@@ -44,7 +51,12 @@ def plot_graph(y, y_label, x_label, file_name, y_aux=None, legend=None, legend_a
 
 def read_parameters():
     try:
-        dataset = int(input('Enter the dataset to be tested:\n1- Nonlinear Dynamic Plant Identification With Time-VaryingCharacteristics\n' + 
+        algorithm = int(input('Enter the version of eEVM to run:\n1- Batch\n2- RLS (default)\n3- RLS_mod\n'))
+    except ValueError:
+        algorithm = RLS
+
+    try:
+        dataset = int(input('Enter the dataset to be tested:\n1- Nonlinear Dynamic Plant Identification With Time-Varying Characteristics\n' + 
         '2- Mackey–Glass Chaotic Time Series (Long-Term Prediction)\n3- Online Prediction of S&P 500 Daily Closing Price\n' + 
         '4- Wheater temperature (default)\n5- Wind speed\n'))
     except ValueError:
@@ -85,9 +97,9 @@ def read_parameters():
         sigma = 0.5
 
     try:
-        tau = int(input('Enter the tau (default value = 75): '))
+        tau = int(input('Enter the tau (default value = 300): '))
     except ValueError:
-        tau = 75
+        tau = 300
 
     try:
         refresh_rate = int(input('Enter the refresh_rate (default value = 50): '))
@@ -111,9 +123,9 @@ def read_parameters():
     except ValueError:
         plot_frequency = -1
     
-    return [dataset, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, register_experiment, plot_frequency]
+    return [algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, register_experiment, plot_frequency]
 
-def run(dataset, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, register_experiment, training, plot_frequency):
+def run(algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, register_experiment, training, plot_frequency):
     mlflow.set_experiment(experiment_name)
 
     for site in sites:
@@ -164,6 +176,11 @@ def run(dataset, sites, input_path, experiment_name, dim, sigma, tau, refresh_ra
                 mlflow.set_tag("plots", 'no')
             else:
                 mlflow.set_tag("plots", 'yes')
+            
+            if algorithm == BATCH:
+                mlflow.set_tag("alg", "eEVM_batch")
+            elif algorithm == RLS:
+                mlflow.set_tag("alg", "eEVM_RLS")
 
             artifact_uri = mlflow.get_artifact_uri()
             # removing the 'file://'
@@ -175,7 +192,10 @@ def run(dataset, sites, input_path, experiment_name, dim, sigma, tau, refresh_ra
             mlflow.log_param("refresh_rate", refresh_rate)
             mlflow.log_param("window_size", window_size)
 
-        model = eEVM(sigma, tau, refresh_rate, window_size)
+        if algorithm == BATCH:
+            model = eEVM(sigma, tau, refresh_rate, window_size)
+        elif algorithm == RLS:
+            model = eEVM_RLS(sigma, tau, refresh_rate, window_size)
 
         predictions = np.zeros((y.shape[0], 1))
         number_of_clusters = np.zeros((y.shape[0], 1))
@@ -218,5 +238,5 @@ def run(dataset, sites, input_path, experiment_name, dim, sigma, tau, refresh_ra
             mlflow.end_run()        
 
 if __name__ == "__main__":
-    [dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, register_experiment, plot_frequency] = read_parameters()
-    run(dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, register_experiment, False, plot_frequency)
+    [algorithm, dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, register_experiment, plot_frequency] = read_parameters()
+    run(algorithm, dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, register_experiment, False, plot_frequency)
