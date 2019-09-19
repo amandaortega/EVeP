@@ -1,6 +1,7 @@
 import csv
 from eEVM import eEVM
 from eEVM_RLS import eEVM_RLS
+from eEVM_RLS_mod import eEVM_RLS_mod
 from math import sqrt
 import matplotlib.pyplot as plt
 import mlflow
@@ -51,16 +52,16 @@ def plot_graph(y, y_label, x_label, file_name, y_aux=None, legend=None, legend_a
 
 def read_parameters():
     try:
-        algorithm = int(input('Enter the version of eEVM to run:\n1- Batch\n2- RLS (default)\n3- RLS_mod\n'))
+        algorithm = int(input('Enter the version of eEVM to run:\n1- Batch\n2- RLS\n3- RLS_mod (default)\n'))
     except ValueError:
-        algorithm = RLS
+        algorithm = RLS_MOD
 
     try:
-        dataset = int(input('Enter the dataset to be tested:\n1- Nonlinear Dynamic Plant Identification With Time-Varying Characteristics\n' + 
+        dataset = int(input('Enter the dataset to be tested:\n1- Nonlinear Dynamic Plant Identification With Time-Varying Characteristics (default)\n' + 
         '2- Mackey–Glass Chaotic Time Series (Long-Term Prediction)\n3- Online Prediction of S&P 500 Daily Closing Price\n' + 
-        '4- Wheater temperature (default)\n5- Wind speed\n'))
+        '4- Wheater temperature\n5- Wind speed\n'))
     except ValueError:
-        dataset = TEMPERATURE
+        dataset = PLANT_IDENTIFICATION
 
     if dataset == PLANT_IDENTIFICATION:
         sites = ['Default']
@@ -107,9 +108,9 @@ def read_parameters():
         refresh_rate = 50
 
     try:
-        window_size = int(input('Enter the size of the window (default value = 50): '))
+        window_size = int(input('Enter the size of the window (default value = 4): '))
     except ValueError:
-        window_size = 50
+        window_size = 4
 
     register_experiment = input('Register the experiment? (default value = true): ')
 
@@ -181,6 +182,8 @@ def run(algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau,
                 mlflow.set_tag("alg", "eEVM_batch")
             elif algorithm == RLS:
                 mlflow.set_tag("alg", "eEVM_RLS")
+            elif algorithm == RLS_MOD:
+                mlflow.set_tag("alg", "eEVM_RLS_mod")                
 
             artifact_uri = mlflow.get_artifact_uri()
             # removing the 'file://'
@@ -196,6 +199,8 @@ def run(algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau,
             model = eEVM(sigma, tau, refresh_rate, window_size)
         elif algorithm == RLS:
             model = eEVM_RLS(sigma, tau, refresh_rate, window_size)
+        elif algorithm == RLS_MOD:
+            model = eEVM_RLS_mod(sigma, tau, refresh_rate, window_size)        
 
         predictions = np.zeros((y.shape[0], 1))
         number_of_clusters = np.zeros((y.shape[0], 1))

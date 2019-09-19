@@ -1,7 +1,8 @@
 """
     Author: Amanda Ortega de Castro Ayres
-    Created in: September 17, 2019
+    Created in: September 18, 2019
     Python version: 3.6
+    Angelov, P., Victor, J., Dourado, A., & Filev, D. (2004). ON-LINE EVOLUTION OF TAKAGI-SUGENO FUZZY MODELS.
 """
 
 import libmr
@@ -12,7 +13,7 @@ import numpy as np
 import numpy.matlib
 import sklearn.metrics
 
-class eEVM_RLS(object):
+class eEVM_RLS_mod(object):
 
     """
     evolving Extreme Value Machine
@@ -35,7 +36,7 @@ class eEVM_RLS(object):
             P0 = 10**6
 
             # Initialization of a new instance of EV.
-            def __init__(self, x0, y0, tau, step, window_size):
+            def __init__(self, x0, y0, tau, step, window_size, theta=None):
                 self.mr_x = libmr.MR()
                 self.mr_y = libmr.MR()
                 self.mr_xy = libmr.MR()
@@ -48,9 +49,12 @@ class eEVM_RLS(object):
                 self.window_size = window_size
                 self.last_update = np.max(step)
 
-                # coefficients of the consequent part
-                self.theta = np.zeros_like(x0)
-                self.theta = np.insert(self.theta, 0, y0, axis=1).T
+                if theta is None:
+                    # coefficients of the consequent part
+                    self.theta = np.zeros_like(x0)
+                    self.theta = np.insert(self.theta, 0, y0, axis=1).T
+                else:
+                    self.theta = theta
 
                 self.P = self.P0 * np.eye(x0.shape[1] + 1)
 
@@ -81,7 +85,10 @@ class eEVM_RLS(object):
                 if y is None:
                     return self.mr_x.w_score_vector(sklearn.metrics.pairwise.pairwise_distances(self.x0, x).reshape(-1))
                 elif x is None:
-                    return self.mr_y.w_score_vector(sklearn.metrics.pairwise.pairwise_distances(self.y0, y).reshape(-1))
+                    try:
+                        return self.mr_y.w_score_vector(sklearn.metrics.pairwise.pairwise_distances(self.y0, y).reshape(-1))
+                    except Exception:
+                        print('para')
                 else:
                     return self.mr_xy.w_score_vector(sklearn.metrics.pairwise.pairwise_distances(np.concatenate((self.x0, self.y0), axis=1), np.concatenate((x, y), axis=1)).reshape(-1))
 
@@ -138,8 +145,15 @@ class eEVM_RLS(object):
             self.sigma = sigma
             self.window_size = window_size
 
-        def add_EV(self, x0, y0, X_ext, y_ext, step):
-            self.EVs.append(self.EV(x0, y0, self.tau, step, self.window_size))
+        def add_EV(self, x0, y0, X_ext, y_ext, step, theta=None):
+            if theta is None and len(self.EVs) > 0:
+                lambda_ = self.firing_degrees(x0, y0)
+
+                if sum(lambda_) != 0:
+                    lambda_ = (lambda_ / np.sum(lambda_)).T
+                    theta = np.sum(np.matlib.repmat(lambda_, self.EVs[0].theta.shape[0], 1) * self.get_theta(), 1).reshape(-1, 1)
+
+            self.EVs.append(self.EV(x0, y0, self.tau, step, self.window_size, theta))
             self.EVs[-1].fit(X_ext, y_ext)
 
         def firing_degrees(self, x, y):
@@ -154,6 +168,9 @@ class eEVM_RLS(object):
         
         def get_step(self):
             return np.concatenate([ev.step for ev in self.EVs])        
+
+        def get_theta(self):
+            return np.concatenate([ev.theta for ev in self.EVs], axis=1)           
 
         def get_X(self):
             return np.concatenate([ev.X for ev in self.EVs])           
@@ -332,23 +349,31 @@ class eEVM_RLS(object):
             best_EV_value = 0
             
             best_model_y = None
-            best_EV_y_value = 0            
+            best_EV_y_value = 0  
+
+            lambda_ = None
 
             # check if it is possible to insert the sample in an existing model
             for m in self.models:
                 firing_degrees = m.firing_degrees(x, y)
                 best_index = np.argmax(firing_degrees)
 
-                firing_degrees_y = m.firing_degrees(None, y)
-                best_index_y = np.argmax(firing_degrees_y)                
+                if lambda_ is None:
+                    lambda_ = firing_degrees
+                else:
+                    lambda_ = np.concatenate((lambda_, firing_degrees))
 
                 if firing_degrees[best_index] > best_EV_value and firing_degrees[best_index] > self.sigma:
                     best_EV = m.EVs[best_index]
                     best_EV_value = firing_degrees[best_index]
                     best_model_y = m
-                elif firing_degrees_y[best_index_y] > best_EV_y_value and firing_degrees_y[best_index_y] > self.sigma:
-                    best_model_y = m
-                    best_EV_y_value = firing_degrees_y[best_index_y]                    
+                else:
+                    firing_degrees_y = m.firing_degrees(None, y)
+                    best_index_y = np.argmax(firing_degrees_y)                              
+
+                    if firing_degrees_y[best_index_y] > best_EV_y_value and firing_degrees_y[best_index_y] > self.sigma:
+                        best_model_y = m
+                        best_EV_y_value = firing_degrees_y[best_index_y]                    
             
             if best_EV is not None:
                 best_EV.add_sample(x, y, step)
@@ -358,10 +383,19 @@ class eEVM_RLS(object):
                     best_model_y.add_EV(x, y, np.concatenate((x_min, x_max, X_ext), axis=0), np.concatenate((y_min, y_max, y_ext), axis=0), step)                    
                 else:
                     X_ext = np.concatenate([m.get_X() for m in self.models])
-                    y_ext = np.concatenate([m.get_y() for m in self.models])
+                    y_ext = np.concatenate([m.get_y() for m in self.models])                    
 
-                    self.models.append(self.Cluster(self.tau, self.sigma, self.window_size))
-                    self.models[-1].add_EV(x, y, np.concatenate((x_min, x_max, X_ext), axis=0), np.concatenate((y_min, y_max, y_ext), axis=0), step)               
+                    if sum(lambda_) == 0:
+                        self.models.append(self.Cluster(self.tau, self.sigma, self.window_size))
+                        self.models[-1].add_EV(x, y, np.concatenate((x_min, x_max, X_ext), axis=0), np.concatenate((y_min, y_max, y_ext), axis=0), step)
+                    else:
+                        lambda_ = (lambda_ / np.sum(lambda_)).T
+
+                        theta = np.concatenate([m.get_theta() for m in self.models], axis=1)
+                        theta = np.sum(np.matlib.repmat(lambda_, theta.shape[0], 1) * theta, 1).reshape(-1, 1)                    
+                        
+                        self.models.append(self.Cluster(self.tau, self.sigma, self.window_size))
+                        self.models[-1].add_EV(x, y, np.concatenate((x_min, x_max, X_ext), axis=0), np.concatenate((y_min, y_max, y_ext), axis=0), step, theta)
 
                     best_model_y = self.models[-1]
             
