@@ -137,10 +137,14 @@ class eEVM_MTL(object):
         if cluster is None:
             X = np.concatenate(self.X)
             y = np.concatenate(self.y)
-        else:            
-            indexes = np.where(np.array(self.cluster) != cluster)
-            X = np.concatenate(list(np.array(self.X)[indexes]))
-            y = np.concatenate(list(np.array(self.y)[indexes]))
+        else:      
+            if self.get_number_of_clusters() > 1:
+                indexes = np.where(np.array(self.cluster) != cluster)
+                X = np.concatenate(list(np.array(self.X)[indexes]))
+                y = np.concatenate(list(np.array(self.y)[indexes]))
+            else:
+                X = np.array([])
+                y = np.array([])
 
         return (X, y)
 
@@ -401,17 +405,19 @@ class eEVM_MTL(object):
             if best_EV is not None:
                 self.add_sample_to_EV(best_EV, x, y, step)
                 cluster = self.cluster[best_EV]
-            # Create an EV to an existing cluster
-            elif cluster is not None:
-                (X_ext, y_ext) = self.get_external_samples(cluster)
-                self.add_EV(x, y, step, cluster, X_ext=np.concatenate((x_min, x_max, X_ext), axis=0), y_ext=np.concatenate((y_min, y_max, y_ext), axis=0))        
-            # Create a new EV inside a new cluster
-            else:
-                (X_ext, y_ext) = self.get_external_samples(cluster)
+            # Create a new cluster
+            elif cluster is None:
                 self.last_cluster_id = self.last_cluster_id + 1
-                cluster = self.last_cluster_id
+                cluster = self.last_cluster_id                
 
-                self.add_EV(x, y, step, cluster, X_ext=np.concatenate((x_min, x_max, X_ext), axis=0), y_ext=np.concatenate((y_min, y_max, y_ext), axis=0))
+            # Create a new EV in the respective cluster
+            if best_EV is None:
+                (X_ext, y_ext) = self.get_external_samples(cluster)
+                
+                if X_ext.size == 0:
+                    self.add_EV(x, y, step, cluster, X_ext=np.concatenate((x_min, x_max), axis=0), y_ext=np.concatenate((y_min, y_max), axis=0))        
+                else:
+                    self.add_EV(x, y, step, cluster, X_ext=np.concatenate((x_min, x_max, X_ext), axis=0), y_ext=np.concatenate((y_min, y_max, y_ext), axis=0))        
             
             self.update_EVs(cluster)
 
