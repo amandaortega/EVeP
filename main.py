@@ -2,6 +2,7 @@ import csv
 from eEVM import eEVM
 from eEVM_RLS import eEVM_RLS
 from eEVM_RLS_mod import eEVM_RLS_mod
+from eEVM_MTL import eEVM_MTL
 from math import sqrt
 import matplotlib.pyplot as plt
 import mlflow
@@ -17,9 +18,12 @@ TEMPERATURE = 4
 WIND = 5
 
 # algorithm versions
-BATCH = 1
-RLS = 2
-RLS_MOD = 3
+BATCH = 0
+RLS = 1
+RLS_MOD = 2
+RLS_MTL = 3
+
+VERSION_NAME = ['BATCH', 'RLS', 'RLS_MOD', 'RLS_MTL']
 
 def read_csv(file, dataset):
     database = []
@@ -52,9 +56,9 @@ def plot_graph(y, y_label, x_label, file_name, y_aux=None, legend=None, legend_a
 
 def read_parameters():
     try:
-        algorithm = int(input('Enter the version of eEVM to run:\n1- Batch\n2- RLS\n3- RLS_mod (default)\n'))
+        algorithm = int(input('Enter the version of eEVM to run:\n1- Batch\n2- RLS\n3- RLS_mod\n4- RLS_MTL (default)\n')) - 1
     except ValueError:
-        algorithm = RLS_MOD
+        algorithm = RLS_MTL
 
     try:
         dataset = int(input('Enter the dataset to be tested:\n1- Nonlinear Dynamic Plant Identification With Time-Varying Characteristics (default)\n' + 
@@ -178,12 +182,7 @@ def run(algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau,
             else:
                 mlflow.set_tag("plots", 'yes')
             
-            if algorithm == BATCH:
-                mlflow.set_tag("alg", "eEVM_batch")
-            elif algorithm == RLS:
-                mlflow.set_tag("alg", "eEVM_RLS")
-            elif algorithm == RLS_MOD:
-                mlflow.set_tag("alg", "eEVM_RLS_mod")                
+            mlflow.set_tag("alg", "eEVM_" + VERSION_NAME[algorithm])                
 
             artifact_uri = mlflow.get_artifact_uri()
             # removing the 'file://'
@@ -201,6 +200,8 @@ def run(algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau,
             model = eEVM_RLS(sigma, tau, refresh_rate, window_size)
         elif algorithm == RLS_MOD:
             model = eEVM_RLS_mod(sigma, tau, refresh_rate, window_size)        
+        elif algorithm == RLS_MTL:
+            model = eEVM_MTL(sigma, tau, refresh_rate, window_size)                    
 
         predictions = np.zeros((y.shape[0], 1))
         number_of_clusters = np.zeros((y.shape[0], 1))

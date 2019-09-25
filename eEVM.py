@@ -100,7 +100,7 @@ class eEVM(object):
             # Plot the probability of sample inclusion (psi-model) together with the samples associated with the EV
             def plot(self, ax, marker, color, z_bottom, sigma):
                 # Plot the input samples in the XY plan
-                sc = ax.scatter(self.X[:, 0], self.X[:, 1], z_bottom * np.ones((self.X.shape[0], 1)), marker=marker, color=color)
+                ax.scatter(self.X[:, 0], self.X[:, 1], z_bottom * np.ones((self.X.shape[0], 1)), marker=marker, color=color)
 
                 # Plot the radius for which there is a probability sigma to belong to the EV
                 radius = self.get_distance(sigma)
