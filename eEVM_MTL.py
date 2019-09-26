@@ -33,7 +33,6 @@ class eEVM_MTL(object):
 
         self.mr_x = list()
         self.mr_y = list()
-        self.mr_xy = list()
         self.x0 = list()
         self.y0 = list()
         self.X = list()
@@ -49,7 +48,6 @@ class eEVM_MTL(object):
     def add_EV(self, x0, y0, step, cluster, X=None, y=None, step_samples=None, X_ext=None, y_ext=None):
         self.mr_x.append(libmr.MR())
         self.mr_y.append(libmr.MR())
-        self.mr_xy.append(libmr.MR())
         self.x0.append(x0)
         self.y0.append(y0)
         self.X.append(x0)
@@ -68,16 +66,10 @@ class eEVM_MTL(object):
         else:
             # coefficients of the consequent part        
             self.theta[-1] = np.insert(self.theta[-1], 0, y0, axis=1).T
-        
-        if len(self.mr_x) != len(self.theta):
-            print('para')
 
     # Add the sample(s) (X, y) as covered by the extreme vector. Remove repeated points.
     def add_sample_to_EV(self, index, X, y, step):
-        try:
-            self.X[index] = np.concatenate((self.X[index], X))
-        except Exception:
-            print('para')
+        self.X[index] = np.concatenate((self.X[index], X))
         self.y[index] = np.concatenate((self.y[index], y))
         self.step[index] = np.concatenate((self.step[index], step))          
 
@@ -90,10 +82,7 @@ class eEVM_MTL(object):
         
         self.last_update[index] = np.max(self.step[index])
         self.qty_samples[index] = self.X[index].shape[0]
-        self.theta[index] = np.linalg.lstsq(np.insert(self.X[index], 0, 1, axis=1), self.y[index])[0]
-
-        if len(self.mr_x) != len(self.theta):
-            print('para')        
+        self.theta[index] = np.linalg.lstsq(np.insert(self.X[index], 0, 1, axis=1), self.y[index])[0]    
 
     def delete_from_list(self, list_, indexes):
         for i in sorted(indexes, reverse=True):
@@ -108,13 +97,12 @@ class eEVM_MTL(object):
         elif x is None:
             return self.mr_y[index].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(self.y0[index], y).reshape(-1))
         else:
-            return self.mr_xy[index].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(np.concatenate((self.x0[index], self.y0[index]), axis=1), np.concatenate((x, y), axis=1)).reshape(-1))
+            return np.minimum(self.mr_x[index].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(self.x0[index], x).reshape(-1)), self.mr_y[index].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(self.y0[index], y).reshape(-1)))
 
     # Fit the psi curve of the EVs according to the external samples 
     def fit(self, index, X_ext, y_ext):
         self.fit_x(index, sklearn.metrics.pairwise.pairwise_distances(self.x0[index], X_ext)[0])
         self.fit_y(index, sklearn.metrics.pairwise.pairwise_distances(self.y0[index], y_ext)[0])
-        self.fit_xy(index, sklearn.metrics.pairwise.pairwise_distances(np.concatenate((self.x0[index], self.y0[index]), axis=1), np.concatenate((X_ext, y_ext), axis=1))[0])                
 
     # Fit the psi curve to the extreme values with distance D to the center of the EV
     def fit_x(self, index, D):
@@ -122,11 +110,7 @@ class eEVM_MTL(object):
 
     # Fit the psi curve to the extreme values with distance D to the center of the EV
     def fit_y(self, index, D):
-        self.mr_y[index].fit_low(1/2 * D, min(D.shape[0], self.tau))                   
-
-    # Fit the psi curve to the extreme values with distance D to the center of the EV
-    def fit_xy(self, index, D):
-        self.mr_xy[index].fit_low(1/2 * D, min(D.shape[0], self.tau))                                   
+        self.mr_y[index].fit_low(1/2 * D, min(D.shape[0], self.tau))                                                  
 
     # Get the distance from the origin of the EV which has the given probability to belong to the curve
     def get_distance(self, index, percentage):
@@ -260,10 +244,7 @@ class eEVM_MTL(object):
 
     # Predict the local output of x based on the linear regression of the samples stored at the EV
     def predict_EV(self, index, x):
-        try:
-            return np.insert(x, 0, 1).reshape(1, -1) @ self.theta[index]        
-        except Exception:
-            print('para')
+        return np.insert(x, 0, 1).reshape(1, -1) @ self.theta[index]        
 
     # Refresh the EVs of the clusters informed by parameter based on the distribution of the samples
     def refresh(self, clusters):
@@ -279,18 +260,20 @@ class eEVM_MTL(object):
 
             self.remove_cluster(cluster)
 
-            mr_xy_temp = list()
+            mr_x_temp = list()
+            mr_y_temp = list()
 
             # calcula os pares de distâncias entre as amostras da classe atual e as amostras das outras classes
-            D = sklearn.metrics.pairwise.pairwise_distances(X_in, X_ext)
+            D_x = sklearn.metrics.pairwise.pairwise_distances(X_in, X_ext)
             D_y = sklearn.metrics.pairwise.pairwise_distances(y_in, y_ext)
-            D_xy = sklearn.metrics.pairwise.pairwise_distances(np.concatenate((X_in, y_in), axis=1), np.concatenate((X_ext, y_ext), axis=1))
 
             # para cada amostra pertencente à classe Cl, estima os parâmetros shape e scale com base na metade da distância
             # das tau amostras mais próximas não pertencentes a Cl
             for i in range(X_in.shape[0]):
-                mr_xy_temp.append(libmr.MR())
-                mr_xy_temp[-1].fit_low(1/2 * D_xy[i], min(D_xy[i].shape[0], self.tau))                                   
+                mr_x_temp.append(libmr.MR())
+                mr_y_temp.append(libmr.MR())
+                mr_x_temp[-1].fit_low(1/2 * D_x[i], min(D_x[i].shape[0], self.tau))
+                mr_y_temp[-1].fit_low(1/2 * D_y[i], min(D_y[i].shape[0], self.tau))
 
             Nl = X_in.shape[0]
             U = range(Nl)
@@ -299,7 +282,7 @@ class eEVM_MTL(object):
             # percorre todas as amostras e verifica se a probabilidade gerada pela função psi da distância entre cada par 
             # de pontos é maior ou igual a sigma
             for i in U:
-                S_i = mr_xy_temp[i].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(np.concatenate((X_in[i, :].reshape(1, -1), y_in[i].reshape(1, -1)), axis=1), np.concatenate((X_in, y_in), axis=1)).reshape(-1))
+                S_i = np.minimum(mr_x_temp[i].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(X_in[i, :].reshape(1, -1), X_in).reshape(-1)), mr_y_temp[i].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(y_in[i, :].reshape(1, -1), y_in).reshape(-1)))
                 S[i, :] = S_i > self.sigma
             
             C = []
@@ -324,9 +307,8 @@ class eEVM_MTL(object):
                 if new_points.shape[0] > 0:
                     self.add_EV(X_in[ind, :].reshape(1, -1), y_in[ind].reshape(1, -1), step_in[ind].reshape(1, -1), cluster, X_in[new_points], y_in[new_points], step_in[new_points])
 
-                    self.mr_xy[-1] = mr_xy_temp[ind]
-                    self.fit_x(-1, D[ind])
-                    self.fit_y(-1, D_y[ind])    
+                    self.mr_x[-1] = mr_x_temp[ind]
+                    self.mr_y[-1] = mr_y_temp[ind]
 
     # Remove all the the EVs belonging to the cluster informed by parameter
     def remove_cluster(self, cluster):
@@ -336,7 +318,6 @@ class eEVM_MTL(object):
     def remove_EV(self, index):
         self.mr_x = self.delete_from_list(self.mr_x, index)
         self.mr_y = self.delete_from_list(self.mr_y, index)
-        self.mr_xy = self.delete_from_list(self.mr_xy, index)
         self.x0 = self.delete_from_list(self.x0, index)
         self.y0 = self.delete_from_list(self.y0, index)
         self.X = self.delete_from_list(self.X, index)
@@ -364,7 +345,6 @@ class eEVM_MTL(object):
 
         self.mr_x = list(np.array(self.mr_x)[new_order])
         self.mr_y = list(np.array(self.mr_y)[new_order])
-        self.mr_xy = list(np.array(self.mr_xy)[new_order])
         self.x0 = list(np.array(self.x0)[new_order])
         self.y0 = list(np.array(self.y0)[new_order])
         self.X = list(np.array(self.X)[new_order])
