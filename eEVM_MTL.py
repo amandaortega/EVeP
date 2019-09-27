@@ -108,10 +108,7 @@ class eEVM_MTL(object):
 
     # Fit the psi curve of the EVs according to the external samples 
     def fit(self, index, X_ext, y_ext):
-        try:
-            self.fit_x(index, sklearn.metrics.pairwise.pairwise_distances(self.x0[index], X_ext)[0])
-        except Exception:
-            print('para')
+        self.fit_x(index, sklearn.metrics.pairwise.pairwise_distances(self.x0[index], X_ext)[0])
         self.fit_y(index, sklearn.metrics.pairwise.pairwise_distances(self.y0[index], y_ext)[0])
 
     # Fit the psi curve to the extreme values with distance D to the center of the EV

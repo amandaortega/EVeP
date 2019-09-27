@@ -1,6 +1,6 @@
 """
     Author: Amanda Ortega de Castro Ayres
-    Created in: June 25, 2019
+    Created in: September 19, 2019
     Python version: 3.6
 """
 
@@ -22,156 +22,265 @@ class eEVM(object):
     3. Call the train(x, y) method to evolve the model based on the new input-output pair.
     """
 
-    class Cluster(object):
-        """
-        Cluster grouping near samples.
-        """
+    # Model initialization
+    def __init__(self, sigma=0.5, tau=75, refresh_rate=50, window_size=np.Inf):        
+        # Setting EVM algorithm parameters
+        self.sigma = sigma
+        self.tau = tau
+        self.refresh_rate = refresh_rate
+        self.window_size = window_size    
+        self.last_cluster_id = -1
+
+        self.mr_x = list()
+        self.mr_y = list()
+        self.x0 = list()
+        self.y0 = list()
+        self.X = list()
+        self.y = list()
+        self.step = list()
+        self.last_update = list()
+        self.theta = list()
+        self.cluster = list()
+        self.R = None
+        self.qty_samples = list()
+
+    # Initialization of a new instance of EV.
+    def add_EV(self, x0, y0, step, cluster, X=None, y=None, step_samples=None, X_ext=None, y_ext=None):
+        self.mr_x.append(libmr.MR())
+        self.mr_y.append(libmr.MR())
+        self.x0.append(x0)
+        self.y0.append(y0)
+        self.X.append(x0)
+        self.y.append(y0)
+        self.step.append(step)
+        self.last_update.append(np.max(step))
+        self.cluster.append(cluster)
+        self.theta.append(np.zeros_like(x0))
+        self.qty_samples.append(0)
+
+        if X_ext is not None:
+            self.fit(len(self.cluster) - 1, X_ext, y_ext)
+
+        if X is not None:
+            self.add_sample_to_EV(len(self.x0) - 1, X, y, step_samples)
+        else:
+            # coefficients of the consequent part        
+            self.theta[-1] = np.insert(self.theta[-1], 0, y0, axis=1).T
+
+    # Add the sample(s) (X, y) as covered by the extreme vector. Remove repeated points.
+    def add_sample_to_EV(self, index, X, y, step):
+        self.X[index] = np.concatenate((self.X[index], X))
+        self.y[index] = np.concatenate((self.y[index], y))
+        self.step[index] = np.concatenate((self.step[index], step))          
+
+        if self.X[index].shape[0] > self.window_size:
+            indexes = np.argsort(-self.step[index].reshape(-1))
+
+            self.X[index] = self.X[index][indexes[: self.window_size], :]
+            self.y[index] = self.y[index][indexes[: self.window_size]]
+            self.step[index] = self.step[index][indexes[: self.window_size]]
         
-        class EV(object):
-            """
-            Extreme vector.
-            """
+        self.x0[index] = np.average(self.X[index], axis=0).reshape(1, -1)
+        self.y0[index] = np.average(self.y[index], axis=0).reshape(1, -1)
 
-            # Initialization of a new instance of EV.
-            def __init__(self, x0, y0, tau, step, window_size):
-                self.mr_x = libmr.MR()
-                self.mr_y = libmr.MR()
-                self.mr_xy = libmr.MR()
-                self.tau = tau
-                self.x0 = x0
-                self.y0 = y0
-                self.X = x0
-                self.y = y0
-                self.step = step
-                self.window_size = window_size
-                self.last_update = np.max(step)
+        (X_ext, y_ext) = self.get_external_samples(self.cluster[index])
+        if X_ext.size > 0:
+            self.fit(index, X_ext, y_ext)
 
-                # coefficients of the consequent part
-                self.theta = np.zeros_like(x0)
-                self.theta = np.insert(self.theta, 0, y0, axis=1).T
+        self.last_update[index] = np.max(self.step[index])
+        self.qty_samples[index] = self.X[index].shape[0]
+        self.theta[index] = np.linalg.lstsq(np.insert(self.X[index], 0, 1, axis=1), self.y[index])[0]    
 
-            # Add the sample(s) (X, y) as covered by the extreme vector. Remove repeated points.
-            def add_sample(self, X, y, step):
-                self.X = np.concatenate((self.X, X))                
-                self.y = np.concatenate((self.y, y))
-                self.step = np.concatenate((self.step, step))          
-
-                if self.X.shape[0] > self.window_size:
-                    indexes = np.argsort(-self.step.reshape(-1))
-
-                    self.X = self.X[indexes[: self.window_size], :]
-                    self.y = self.y[indexes[: self.window_size]]
-                    self.step = self.step[indexes[: self.window_size]]
-                
-                self.last_update = np.max(self.step)
-                self.theta = np.linalg.lstsq(np.insert(self.X, 0, 1, axis=1), self.y)[0]
-
-            # Calculate the firing degree of the sample to the psi curve
-            def firing_degree(self, x=None, y=None):
-                if y is None:
-                    return self.mr_x.w_score_vector(sklearn.metrics.pairwise.pairwise_distances(self.x0, x).reshape(-1))
-                elif x is None:
-                    return self.mr_y.w_score_vector(sklearn.metrics.pairwise.pairwise_distances(self.y0, y).reshape(-1))
-                else:
-                    return self.mr_xy.w_score_vector(sklearn.metrics.pairwise.pairwise_distances(np.concatenate((self.x0, self.y0), axis=1), np.concatenate((x, y), axis=1)).reshape(-1))
-
-            # Fit the psi curve of the EVs according to the external samples 
-            def fit(self, X_ext, y_ext):
-                self.fit_x(sklearn.metrics.pairwise.pairwise_distances(self.x0, X_ext)[0])
-                self.fit_y(sklearn.metrics.pairwise.pairwise_distances(self.y0, y_ext)[0])
-                self.fit_xy(sklearn.metrics.pairwise.pairwise_distances(np.concatenate((self.x0, self.y0), axis=1), np.concatenate((X_ext, y_ext), axis=1))[0])                
-
-            # Fit the psi curve to the extreme values with distance D to the center of the EV
-            def fit_x(self, D):
-                self.mr_x.fit_low(1/2 * D, min(D.shape[0], self.tau))   
-
-            # Fit the psi curve to the extreme values with distance D to the center of the EV
-            def fit_y(self, D):
-                self.mr_y.fit_low(1/2 * D, min(D.shape[0], self.tau))                   
-
-            # Fit the psi curve to the extreme values with distance D to the center of the EV
-            def fit_xy(self, D):
-                self.mr_xy.fit_low(1/2 * D, min(D.shape[0], self.tau))                                   
-
-            # Get the distance from the origin of the EV which has the given probability to belong to the curve
-            def get_distance(self, percentage):
-                return self.mr_x.inv(percentage)
-
-            # Plot the probability of sample inclusion (psi-model) together with the samples associated with the EV
-            def plot(self, ax, marker, color, z_bottom, sigma):
-                # Plot the input samples in the XY plan
-                ax.scatter(self.X[:, 0], self.X[:, 1], z_bottom * np.ones((self.X.shape[0], 1)), marker=marker, color=color)
-
-                # Plot the radius for which there is a probability sigma to belong to the EV
-                radius = self.get_distance(sigma)
-                p = Circle((self.x0[0, 0], self.x0[0, 1]), radius, fill=False, color=color)
-                ax.add_patch(p)
-                art3d.pathpatch_2d_to_3d(p, z=z_bottom, zdir="z")
-
-                # Plot the psi curve of the EV
-                r = np.linspace(0, self.get_distance(0.05), 100)
-                theta = np.linspace(0, 2 * np.pi, 145)    
-                radius_matrix, theta_matrix = np.meshgrid(r,theta)            
-                X = self.x0[0, 0] + radius_matrix * np.cos(theta_matrix)
-                Y = self.x0[0, 1] + radius_matrix * np.sin(theta_matrix)
-                points = np.array([np.array([X, Y])[0, :, :].reshape(-1), np.array([X, Y])[1, :, :].reshape(-1)]).T
-                Z = self.firing_degree(points)
-                ax.plot_surface(X, Y, Z.reshape((X.shape[0], X.shape[1])), antialiased=False, cmap=cm.coolwarm, alpha=0.1)
-
-            # Predict the local output of x based on the linear regression of the samples stored at the EV
-            def predict(self, x):
-                return np.insert(x, 0, 1).reshape(1, -1) @ self.theta
-
-        def __init__(self, tau=75, sigma=0.5, window_size=50):
-            self.EVs = list()
-            self.tau = tau
-            self.sigma = sigma
-            self.window_size = window_size
-
-        def add_EV(self, x0, y0, X_ext, y_ext, step):
-            self.EVs.append(self.EV(x0, y0, self.tau, step, self.window_size))
-            self.EVs[-1].fit(X_ext, y_ext)
-
-        def firing_degrees(self, x, y):
-            return np.array([ev.firing_degree(x, y) for ev in self.EVs])
+    def delete_from_list(self, list_, indexes):
+        for i in sorted(indexes, reverse=True):
+            del list_[i]
         
-        def get_samples(self):
-            X = np.concatenate([ev.X for ev in self.EVs])
-            y = np.concatenate([ev.y for ev in self.EVs])
-            step = np.concatenate([ev.step for ev in self.EVs])
+        return list_
 
-            return (X, y, step)
+    # Calculate the firing degree of the sample to the psi curve
+    def firing_degree(self, index, x=None, y=None):
+        if y is None:
+            return self.mr_x[index].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(self.x0[index], x).reshape(-1))
+        elif x is None:
+            return self.mr_y[index].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(self.y0[index], y).reshape(-1))
+        else:
+            return np.minimum(self.mr_x[index].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(self.x0[index], x).reshape(-1)), self.mr_y[index].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(self.y0[index], y).reshape(-1)))
+
+    # Fit the psi curve of the EVs according to the external samples 
+    def fit(self, index, X_ext, y_ext):
+        self.fit_x(index, sklearn.metrics.pairwise.pairwise_distances(self.x0[index], X_ext)[0])
+        self.fit_y(index, sklearn.metrics.pairwise.pairwise_distances(self.y0[index], y_ext)[0])
+
+    # Fit the psi curve to the extreme values with distance D to the center of the EV
+    def fit_x(self, index, D):
+        self.mr_x[index].fit_low(1/2 * D, min(D.shape[0], self.tau))   
+
+    # Fit the psi curve to the extreme values with distance D to the center of the EV
+    def fit_y(self, index, D):
+        self.mr_y[index].fit_low(1/2 * D, min(D.shape[0], self.tau))                                                  
+
+    # Get the distance from the origin of the EV which has the given probability to belong to the curve
+    def get_distance(self, index, percentage):
+        return self.mr_x[index].inv(percentage)
+
+    # Obtain the samples that not belong to the cluster given by parameter but are part of the other clusters of the system
+    def get_external_samples(self, cluster=None):
+        if cluster is None:
+            X = np.concatenate(self.X)
+            y = np.concatenate(self.y)
+        else:      
+            if self.get_number_of_clusters() > 1:
+                indexes = np.where(np.array(self.cluster) != cluster)
+                X = np.concatenate(list(np.array(self.X)[indexes]))
+                y = np.concatenate(list(np.array(self.y)[indexes]))
+            else:
+                X = np.array([])
+                y = np.array([])
+
+        return (X, y)
+
+    def get_internal_samples(self, cluster):
+        indexes = np.where(np.array(self.cluster) == cluster)
+        return (np.concatenate(list(np.array(self.X)[indexes])), np.concatenate(list(np.array(self.y)[indexes])), np.concatenate(list(np.array(self.step)[indexes])))
+
+    # Return the number of clusters existing in the model
+    def get_number_of_clusters(self):        
+        return len(np.unique(self.cluster))
+
+    # Return the total number of EVs existing in the model
+    def get_number_of_EVs(self):
+        return len(self.mr_x)                
+
+    def get_step(self, cluster):
+        return np.concatenate(list(np.array(self.step)[np.where(np.array(self.cluster) == cluster)]))
+
+    def get_X(self, cluster):
+        return np.concatenate(list(np.array(self.X)[np.where(np.array(self.cluster) == cluster)]))
+
+    def get_y(self, cluster):
+        return np.concatenate(list(np.array(self.y)[np.where(np.array(self.cluster) == cluster)]))
+
+    # Merge two EVs of different clusters whenever the origin of one is inside the sigma probability of inclusion of the psi curve of the other
+    def merge(self):
+        self.sort_EVs()
+        index = 0
+        clusters_to_refresh = list()
+
+        while index < len(self.mr_x):
+            if index + 1 < len(self.mr_x):
+                x0 = np.concatenate(self.x0[index + 1 : ])
+                y0 = np.concatenate(self.y0[index + 1 : ])
+
+                S_index = self.firing_degree(index, x0, y0)
+                index_to_merge = np.where(S_index > self.sigma)[0] + index + 1
+
+                if len(index_to_merge) > 0:
+                    clusters_to_refresh.append(self.cluster[index])
+
+                for i in reversed(range(len(index_to_merge))):
+                    self.add_sample_to_EV(index, self.X[index_to_merge[i]], self.y[index_to_merge[i]], self.step[index_to_merge[i]])
+                    self.remove_EV([index_to_merge[i]])
+            
+            index = index + 1
+
+        if len(clusters_to_refresh) > 0:
+            self.refresh(np.unique(np.array(clusters_to_refresh)))
+
+    # Plot the granules that form the antecedent part of the rules
+    def plot(self, name_figure):
+        fig = pyplot.figure()
+        ax = fig.add_subplot(111, projection='3d')
+        z_bottom = -0.3
+        ax.set_zlim(bottom=z_bottom, top=1)
+        ax.set_xlim(left=0, right=1)
+        ax.set_ylim(bottom=0, top=1)
+        ax.set_zticklabels("")        
+
+        colors = cm.get_cmap('tab20', len(np.unique(np.array(self.cluster))))
+
+        for i in range(self.mr_x):
+            self.plot_EV(i, ax, '.', colors(self.cluster[i]), z_bottom)
         
-        def get_step(self):
-            return np.concatenate([ev.step for ev in self.EVs])        
+        # Save figure
+        fig.savefig(name_figure)
 
-        def get_X(self):
-            return np.concatenate([ev.X for ev in self.EVs])           
+        # Close plot
+        pyplot.close(fig)
 
-        def get_y(self):
-            return np.concatenate([ev.y for ev in self.EVs])
+    # Plot the probability of sample inclusion (psi-model) together with the samples associated with the EV
+    def plot_EV(self, index, ax, marker, color, z_bottom):
+        # Plot the input samples in the XY plan
+        ax.scatter(self.X[index][:, 0], self.X[index][:, 1], z_bottom * np.ones((self.X[index].shape[0], 1)), marker=marker, color=color)
 
-        # Plot the probability of sample inclusion (psi-model) for each extreme value
-        def plot(self, ax, marker, color, z_bottom):
-            for ev in self.EVs:
-                ev.plot(ax, marker, color, z_bottom, self.sigma)
+        # Plot the radius for which there is a probability sigma to belong to the EV
+        radius = self.get_distance(index, self.sigma)
+        p = Circle((self.x0[index][0, 0], self.x0[index][0, 1]), radius, fill=False, color=color)
+        ax.add_patch(p)
+        art3d.pathpatch_2d_to_3d(p, z=z_bottom, zdir="z")
 
-        def refresh(self, X_ext, y_ext):
-            (X_in, y_in, step_in) = self.get_samples()
+        # Plot the psi curve of the EV
+        r = np.linspace(0, self.get_distance(index, 0.05), 100)
+        theta = np.linspace(0, 2 * np.pi, 145)    
+        radius_matrix, theta_matrix = np.meshgrid(r,theta)            
+        X = self.x0[index][0, 0] + radius_matrix * np.cos(theta_matrix)
+        Y = self.x0[index][0, 1] + radius_matrix * np.sin(theta_matrix)
+        points = np.array([np.array([X, Y])[0, :, :].reshape(-1), np.array([X, Y])[1, :, :].reshape(-1)]).T
+        Z = self.firing_degree(points)
+        ax.plot_surface(X, Y, Z.reshape((X.shape[0], X.shape[1])), antialiased=False, cmap=cm.coolwarm, alpha=0.1)
 
-            self.EVs = list()
-            EVs_temp = list()
+    # Predict the output given the input sample x
+    def predict(self, x):
+        # Checking for system prior knowledge
+        if len(self.mr_x) == 0:
+            return np.mean(x)
+
+        num = 0
+        den = 0
+
+        for i in range(len(self.mr_x)):
+            p = self.predict_EV(i, x)
+
+            if self.firing_degree(i, y=p) > self.sigma:
+                num = num + self.firing_degree(i, x) * p
+                den = den + self.firing_degree(i, x)
+
+        if den == 0:
+            return np.mean(x)
+
+        return num / den
+
+    # Predict the local output of x based on the linear regression of the samples stored at the EV
+    def predict_EV(self, index, x):
+        return np.insert(x, 0, 1).reshape(1, -1) @ self.theta[index]        
+
+    # Refresh the EVs of the clusters informed by parameter based on the distribution of the samples
+    def refresh(self, clusters):
+        if len(clusters) > 0 and len(np.unique(self.cluster)) > 1:
+            for cluster in clusters:
+                self.refresh_cluster(cluster)          
+
+    def refresh_cluster(self, cluster):
+        (X_ext, y_ext) = self.get_external_samples(cluster)
+
+        if X_ext.shape[0] > 0:
+            (X_in, y_in, step_in) = self.get_internal_samples(cluster)
+
+            self.remove_cluster(cluster)
+
+            mr_x_temp = list()
+            mr_y_temp = list()
 
             # calcula os pares de distâncias entre as amostras da classe atual e as amostras das outras classes
-            D = sklearn.metrics.pairwise.pairwise_distances(X_in, X_ext)
+            D_x = sklearn.metrics.pairwise.pairwise_distances(X_in, X_ext)
             D_y = sklearn.metrics.pairwise.pairwise_distances(y_in, y_ext)
-            D_xy = sklearn.metrics.pairwise.pairwise_distances(np.concatenate((X_in, y_in), axis=1), np.concatenate((X_ext, y_ext), axis=1))
 
             # para cada amostra pertencente à classe Cl, estima os parâmetros shape e scale com base na metade da distância
             # das tau amostras mais próximas não pertencentes a Cl
             for i in range(X_in.shape[0]):
-                EVs_temp.append(self.EV(X_in[i, :].reshape(1, -1), y_in[i].reshape(1, -1), self.tau, step_in[i].reshape(1, -1), self.window_size)) 
-                EVs_temp[-1].fit_xy(D_xy[i])   
+                mr_x_temp.append(libmr.MR())
+                mr_y_temp.append(libmr.MR())
+                mr_x_temp[-1].fit_low(1/2 * D_x[i], min(D_x[i].shape[0], self.tau))
+                mr_y_temp[-1].fit_low(1/2 * D_y[i], min(D_y[i].shape[0], self.tau))
 
             Nl = X_in.shape[0]
             U = range(Nl)
@@ -180,7 +289,7 @@ class eEVM(object):
             # percorre todas as amostras e verifica se a probabilidade gerada pela função psi da distância entre cada par 
             # de pontos é maior ou igual a sigma
             for i in U:
-                S_i = EVs_temp[i].firing_degree(X_in, y_in)
+                S_i = np.minimum(mr_x_temp[i].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(X_in[i, :].reshape(1, -1), X_in).reshape(-1)), mr_y_temp[i].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(y_in[i, :].reshape(1, -1), y_in).reshape(-1)))
                 S[i, :] = S_i > self.sigma
             
             C = []
@@ -203,249 +312,111 @@ class eEVM(object):
 
                 # if it isn't an outlier
                 if new_points.shape[0] > 0:
-                    EVs_temp[ind].add_sample(X_in[new_points], y_in[new_points], step_in[new_points])
+                    self.add_EV(X_in[ind, :].reshape(1, -1), y_in[ind].reshape(1, -1), step_in[ind].reshape(1, -1), cluster, X_in[new_points], y_in[new_points], step_in[new_points])
 
-                    EVs_temp[ind].fit_x(D[ind])
-                    EVs_temp[ind].fit_y(D_y[ind])                
+                    self.mr_x[-1] = mr_x_temp[ind]
+                    self.mr_y[-1] = mr_y_temp[ind]
 
-                    # acrescenta o novo valor extremo ao conjunto
-                    self.EVs.append(EVs_temp[ind])
+    # Remove all the the EVs belonging to the cluster informed by parameter
+    def remove_cluster(self, cluster):
+        self.remove_EV(list(np.where(np.array(self.cluster) == cluster)[0]))
 
-        # Remove the EVs that didn't have any update in the last threshold steps
-        def remove_outdated_EVs(self, threshold):
-            index = 0
+    # Remove the EV whose index was informed by parameter
+    def remove_EV(self, index):
+        self.mr_x = self.delete_from_list(self.mr_x, index)
+        self.mr_y = self.delete_from_list(self.mr_y, index)
+        self.x0 = self.delete_from_list(self.x0, index)
+        self.y0 = self.delete_from_list(self.y0, index)
+        self.X = self.delete_from_list(self.X, index)
+        self.y = self.delete_from_list(self.y, index)
+        self.step = self.delete_from_list(self.step, index)
+        self.last_update = self.delete_from_list(self.last_update, index)
+        self.cluster = self.delete_from_list(self.cluster, index)
+        self.qty_samples = self.delete_from_list(self.qty_samples, index)
+        self.theta = self.delete_from_list(self.theta, index)
 
-            while index < len(self.EVs):
-                EV = self.EVs[index]
+    # Remove the EVs that didn't have any update in the last threshold steps
+    def remove_outdated_EVs(self, threshold):
+        indexes_to_remove = list()
 
-                if EV.last_update <= threshold:
-                    self.EVs.remove(EV)
-                else:
-                    index = index + 1                
+        for index in range(len(self.last_update)):
+            if self.last_update[index] <= threshold:
+                indexes_to_remove.append(index)
 
-    # Model initialization
-    def __init__(self, sigma=0.5, tau=75, refresh_rate=50, window_size=np.Inf):        
-        # Setting local models
-        self.models = list()
-
-        # Setting EVM algorithm parameters
-        self.sigma = sigma
-        self.tau = tau
-        self.refresh_rate = refresh_rate
-        self.window_size = window_size
-
-    # Return all the EVs and the respective model's index to which they belong
-    def get_EVs(self):
-        EVs = np.concatenate([m.EVs for m in self.models])
-        how_many_EVs = [len(m.EVs) for m in self.models]
-
-        EV_model_index = list()
-
-        for i, how_many in enumerate(how_many_EVs):
-            EV_model_index.extend([i] * how_many)
-
-        return (EVs, EV_model_index)        
-
-    # Obtain the EVs that not belong to the cluster given by parameter but are part of the other clusters of the system
-    def get_external_EVs(self, cluster):
-        return np.concatenate([m.EVs for m in self.models if m != cluster])
-
-    # Obtain the samples that not belong to the cluster given by parameter but are part of the other clusters of the system
-    def get_external_samples(self, cluster):
-        X_all = np.concatenate((np.concatenate([m.get_X() for m in self.models]), cluster.get_X()))
-        y_all = np.concatenate((np.concatenate([m.get_y() for m in self.models]), cluster.get_y()))
-
-        unique_Xy, count = np.unique(np.concatenate((X_all, y_all), axis=1), axis=0, return_counts=True)
-
-        X_ext = unique_Xy[count == 1, : X_all.shape[1]]
-        y_ext = unique_Xy[count == 1, X_all.shape[1] :]        
-
-        return (X_ext, y_ext)
-
-
-    # Return the number of clusters existing in the model
-    def get_number_of_clusters(self):
-        return len(self.models)
-
-    # Return the total number of EVs existing in the model
-    def get_number_of_EVs(self):
-        return np.concatenate([m.EVs for m in self.models]).shape[0]
-
-    # Merge two EVs of different clusters whenever the origin of one is inside the sigma probability of inclusion of the psi curve of the other
-    def merge(self):
-        merged = False
-
-        (EVs, EVs_model_index) = self.get_EVs()
-        (EVs, EVs_model_index) = self.sort_EVs(EVs, EVs_model_index)    
-
-        for index, EV in enumerate(EVs):
-            if EVs[index + 1 :].size > 0:
-                x0 = np.concatenate([other_EV.x0 for other_EV in EVs[index + 1 :]])
-                y0 = np.concatenate([other_EV.y0 for other_EV in EVs[index + 1 :]])
-
-                S_index = EV.firing_degree(x0, y0)
-                index_to_merge = np.where(S_index > self.sigma)[0] + index + 1
-
-                for i in reversed(range(len(index_to_merge))):
-                    merged = True
-                    EVs[index].add_sample(EVs[index_to_merge[i]].X, EVs[index_to_merge[i]].y, EVs[index_to_merge[i]].step)
-                    EVs = np.delete(EVs, index_to_merge[i])
-                    del EVs_model_index[index_to_merge[i]]
-
-        if merged:        
-            actual_i = 0
-
-            # remove the models that don't have any EV and update the EVs of those which remain
-            for i in range(len(self.models)):
-                if i not in EVs_model_index:
-                    del self.models[actual_i]
-                else:
-                    self.models[actual_i].EVs = EVs[[j for j, x in enumerate(EVs_model_index) if x == i]].tolist()
-                    actual_i = actual_i + 1     
-            
-            self.refresh()
-
-    # Plot the granules that form the antecedent part of the rules
-    def plot(self, name_figure):
-        fig = pyplot.figure()
-        ax = fig.add_subplot(111, projection='3d')
-        z_bottom = -0.3
-        ax.set_zlim(bottom=z_bottom, top=1)
-        ax.set_xlim(left=0, right=1)
-        ax.set_ylim(bottom=0, top=1)
-        ax.set_zticklabels("")        
-
-        colors = cm.get_cmap('tab20', len(self.models))
-
-        for i, m in enumerate(self.models):
-            m.plot(ax, '.', colors(i), z_bottom)
-        
-        # Save figure
-        fig.savefig(name_figure)
-
-        # Close plot
-        pyplot.close(fig)
-
-    # Predict the output given the input sample x
-    def predict(self, x):
-        # Checking for system prior knowledge
-        if len(self.models) == 0:
-            return np.mean(x)
-
-        num = 0
-        den = 0
-
-        for cluster in self.models:
-            for EV in cluster.EVs:
-                p = EV.predict(x)
-
-                if EV.firing_degree(y=p) > self.sigma:
-                    num = num + EV.firing_degree(x) * p
-                    den = den + EV.firing_degree(x)
-
-        if den == 0:
-            return np.mean(x)
-
-        return num / den
-
-    # Refresh the EVs of each cluster based on the distribution of the samples
-    def refresh(self):
-        if len(self.models) > 1:
-            index = 0
-
-            while index < len(self.models):
-                m = self.models[index]
-                (X_ext, y_ext) = self.get_external_samples(m)
-
-                if X_ext.shape[0] > 1:
-                    m.refresh(X_ext, y_ext)                     
-
-                    if len(m.EVs) == 0:
-                        self.models.remove(m)
-
-                        if len(self.models) == 1:
-                            break
-                    else:
-                        index = index + 1
-                else:
-                    index = index + 1
-
-    def remove_outdated_EVs(self, step): 
-        index = 0
-
-        while index < len(self.models):
-            cluster = self.models[index]
-            cluster.remove_outdated_EVs(step - self.refresh_rate)
-
-            # there is no more EV in the current cluster
-            if len(cluster.EVs) == 0:
-                self.models.remove(cluster)
-            else:
-                index = index + 1            
+        if len(indexes_to_remove) > 0:
+            self.remove_EV(indexes_to_remove)    
 
     # Sort the EVs based on the number of samples belonged to them
-    def sort_EVs(self, EVs, EVs_model_index):
-        how_many_samples = np.array([EV.X.shape[0] for EV in EVs])
-        new_order = (-how_many_samples).argsort()
-        return(EVs[new_order], np.array(EVs_model_index)[new_order].tolist())
+    def sort_EVs(self):
+        new_order = (-np.array(self.qty_samples)).argsort()
+
+        self.mr_x = list(np.array(self.mr_x)[new_order])
+        self.mr_y = list(np.array(self.mr_y)[new_order])
+        self.x0 = list(np.array(self.x0)[new_order])
+        self.y0 = list(np.array(self.y0)[new_order])
+        self.X = list(np.array(self.X)[new_order])
+        self.y = list(np.array(self.y)[new_order])
+        self.step = list(np.array(self.step)[new_order])
+        self.last_update = list(np.array(self.last_update)[new_order])
+        self.cluster = list(np.array(self.cluster)[new_order])
+        self.qty_samples = list(np.array(self.qty_samples)[new_order])
 
     # Evolves the model (main method)
     def train(self, x_min, x, x_max, y_min, y, y_max, step):
         # empty antecedents
-        if len(self.models) == 0:
-            self.models.append(self.Cluster(self.tau, self.sigma, self.window_size))
-            self.models[-1].add_EV(x, y, np.concatenate((x_min, x_max), axis=0), np.concatenate((y_min, y_max), axis=0), step)
+        if len(self.mr_x) == 0:
+            self.add_EV(x, y, step, 0, X_ext=np.concatenate((x_min, x_max), axis=0), y_ext=np.concatenate((y_min, y_max), axis=0))
+            self.last_cluster_id = 0
         else:
             best_EV = None
             best_EV_value = 0
             
-            best_model_y = None
-            best_EV_y_value = 0            
+            cluster = None
+            best_EV_y_value = 0
 
             # check if it is possible to insert the sample in an existing model
-            for m in self.models:
-                firing_degrees = m.firing_degrees(x, y)
-                best_index = np.argmax(firing_degrees)
+            for index in range(len(self.mr_x)):
+                tau = self.firing_degree(index, x, y)
 
-                firing_degrees_y = m.firing_degrees(None, y)
-                best_index_y = np.argmax(firing_degrees_y)                
-
-                if firing_degrees[best_index] > best_EV_value and firing_degrees[best_index] > self.sigma:
-                    best_EV = m.EVs[best_index]
-                    best_EV_value = firing_degrees[best_index]
-                    best_model_y = m
-                elif firing_degrees_y[best_index_y] > best_EV_y_value and firing_degrees_y[best_index_y] > self.sigma:
-                    best_model_y = m
-                    best_EV_y_value = firing_degrees_y[best_index_y]                    
-            
-            if best_EV is not None:
-                best_EV.add_sample(x, y, step)
-            else:
-                if best_model_y is not None:
-                    (X_ext, y_ext) = self.get_external_samples(best_model_y)
-                    best_model_y.add_EV(x, y, np.concatenate((x_min, x_max, X_ext), axis=0), np.concatenate((y_min, y_max, y_ext), axis=0), step)                    
+                if tau > best_EV_value and tau > self.sigma:
+                    best_EV = index
+                    best_EV_value = tau
                 else:
-                    X_ext = np.concatenate([m.get_X() for m in self.models])
-                    y_ext = np.concatenate([m.get_y() for m in self.models])
+                    tau = self.firing_degree(index, y=y)
 
-                    self.models.append(self.Cluster(self.tau, self.sigma, self.window_size))
-                    self.models[-1].add_EV(x, y, np.concatenate((x_min, x_max, X_ext), axis=0), np.concatenate((y_min, y_max, y_ext), axis=0), step)               
-
-                    best_model_y = self.models[-1]
+                    if tau > best_EV_y_value and tau > self.sigma:
+                        cluster = self.cluster[index]
+                        best_EV_y_value = tau            
             
-            self.update_EVs(best_model_y)            
+            # Add the sample to an existing EV
+            if best_EV is not None:
+                self.add_sample_to_EV(best_EV, x, y, step)
+                cluster = self.cluster[best_EV]
+            # Create a new cluster
+            elif cluster is None:
+                self.last_cluster_id = self.last_cluster_id + 1
+                cluster = self.last_cluster_id                
+
+            # Create a new EV in the respective cluster
+            if best_EV is None:
+                (X_ext, y_ext) = self.get_external_samples(cluster)
+                
+                if X_ext.size == 0:
+                    self.add_EV(x, y, step, cluster, X_ext=np.concatenate((x_min, x_max), axis=0), y_ext=np.concatenate((y_min, y_max), axis=0))        
+                else:
+                    self.add_EV(x, y, step, cluster, X_ext=np.concatenate((x_min, x_max, X_ext), axis=0), y_ext=np.concatenate((y_min, y_max, y_ext), axis=0))        
+            
+            self.update_EVs(cluster)
 
         if step != 0 and (step % self.refresh_rate) == 0:      
-            self.remove_outdated_EVs(step[0, 0])      
-
+            self.remove_outdated_EVs(step[0, 0] - self.refresh_rate)
             self.merge()
 
     # Update the psi curve of the EVs that do not belong to the model_selected
-    def update_EVs(self, model_selected):
-        for m in self.models:
-            if m != model_selected:
-                (X_ext, y_ext) = self.get_external_samples(m)
+    def update_EVs(self, cluster):
+        for index in range(len(self.mr_x)):
+            if self.cluster[index] != cluster:
+                (X_ext, y_ext) = self.get_external_samples(self.cluster[index])
 
                 if X_ext.shape[0] > 0:
-                    for EV in m.EVs:       
-                        EV.fit(X_ext, y_ext) 
+                    self.fit(index, X_ext, y_ext)
