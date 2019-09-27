@@ -80,6 +80,13 @@ class eEVM_MTL(object):
             self.y[index] = self.y[index][indexes[: self.window_size]]
             self.step[index] = self.step[index][indexes[: self.window_size]]
         
+        self.x0[index] = np.average(self.X[index], axis=0).reshape(1, -1)
+        self.y0[index] = np.average(self.y[index], axis=0).reshape(1, -1)
+
+        (X_ext, y_ext) = self.get_external_samples(self.cluster[index])
+        if X_ext.size > 0:
+            self.fit(index, X_ext, y_ext)
+
         self.last_update[index] = np.max(self.step[index])
         self.qty_samples[index] = self.X[index].shape[0]
         self.theta[index] = np.linalg.lstsq(np.insert(self.X[index], 0, 1, axis=1), self.y[index])[0]    
@@ -101,7 +108,10 @@ class eEVM_MTL(object):
 
     # Fit the psi curve of the EVs according to the external samples 
     def fit(self, index, X_ext, y_ext):
-        self.fit_x(index, sklearn.metrics.pairwise.pairwise_distances(self.x0[index], X_ext)[0])
+        try:
+            self.fit_x(index, sklearn.metrics.pairwise.pairwise_distances(self.x0[index], X_ext)[0])
+        except Exception:
+            print('para')
         self.fit_y(index, sklearn.metrics.pairwise.pairwise_distances(self.y0[index], y_ext)[0])
 
     # Fit the psi curve to the extreme values with distance D to the center of the EV
