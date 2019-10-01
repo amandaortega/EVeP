@@ -33,6 +33,8 @@ class eEVM_MTL(object):
         self.last_cluster_id = -1
         self.rho_1 = rho_1
         self.rho_2 = rho_2
+        self.rho_3 = rho_3
+        self.init_theta = 2
         self.eng = matlab.engine.start_matlab()
 
         self.mr_x = list()
@@ -46,6 +48,7 @@ class eEVM_MTL(object):
         self.theta = list()
         self.cluster = list()
         self.R = None
+        self.theta_matlab = None
         self.qty_samples = list()
 
     # Initialization of a new instance of EV.
@@ -61,6 +64,7 @@ class eEVM_MTL(object):
         self.cluster.append(cluster)
         self.theta.append(np.zeros_like(x0))
         self.qty_samples.append(0)
+        self.init_theta = 2
 
         if X_ext is not None:
             self.fit(len(self.cluster) - 1, X_ext, y_ext)
@@ -192,6 +196,7 @@ class eEVM_MTL(object):
         if len(clusters_to_refresh) > 0:
             self.refresh(np.unique(np.array(clusters_to_refresh)))
             self.update_R()
+            self.init_theta = 2
             self.update_theta()
 
     # Plot the granules that form the antecedent part of the rules
@@ -354,6 +359,7 @@ class eEVM_MTL(object):
         if len(indexes_to_remove) > 0:
             self.remove_EV(indexes_to_remove)
             self.update_R()
+            self.init_theta = 2
 
     # Sort the EVs based on the number of samples belonged to them
     def sort_EVs(self):
@@ -454,7 +460,15 @@ class eEVM_MTL(object):
         y = [matlab.double(self.y[i].tolist()) for i in range(len(self.y))]
         
         if self.R is None:
-            self.theta = list(np.array(self.eng.Least_SRMTL(X, y, 0, self.rho_1, self.rho_2)).T)
+            R = 0
         else:
-            self.theta = list(np.array(self.eng.Least_SRMTL(X, y, matlab.double(self.R.tolist()), self.rho_1, self.rho_2)).T)
+            R = matlab.double(self.R.tolist())
+        
+        if self.init_theta == 1 and self.theta_matlab is not None:
+            self.theta_matlab = self.eng.Least_SRMTL(X, y,R , self.rho_1, self.rho_2, self.rho_3, self.init_theta, self.theta_matlab)
+        else:
+            self.theta_matlab = self.eng.Least_SRMTL(X, y,R , self.rho_1, self.rho_2, self.rho_3, self.init_theta)
+
+        self.theta = list(np.array(self.theta_matlab).T)
         self.theta = [w.reshape(1, -1) for w in self.theta]
+        self.init_theta = 1

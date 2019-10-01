@@ -23,7 +23,7 @@ RLS = 1
 RLS_MOD = 2
 RLS_MTL = 3
 
-VERSION_NAME = ['BATCH', 'RLS', 'RLS_MOD', 'RLS_MTL']
+VERSION_NAME = ['BATCH', 'RLS', 'RLS_MOD', 'MTL']
 
 def read_csv(file, dataset):
     database = []

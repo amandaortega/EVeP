@@ -52,7 +52,7 @@
 %  Logistic_SRMTL, init_opts
 
 %% Code starts here
-function [W, funcVal] = Least_SRMTL(X, Y, R, rho1, rho2, opts)
+function [W, funcVal] = Least_SRMTL(X, Y, R, rho1, rho2, rho_L2, init, W0)
 
 if nargin <5
     error('\n Inputs: X, Y, R, rho1, and rho2 should be specified!\n');
@@ -61,8 +61,11 @@ for i = 1:length(X)
     X{i} = X{i}';
 end
 
-if nargin <6
-    opts = [];
+opts.rho_L2 = rho_L2;
+opts.init = init;
+
+if nargin == 8
+    opts.W0 = W0;
 end
 
 % initialize options.
@@ -177,6 +180,7 @@ else
     if isfield(opts,'W0')
         W0=opts.W0;
         if (nnz(size(W0)-[dimension, task_num]))
+            fprintf('%d\n', size(W0));
             error('\n Check the input .W0');
         end
     else
