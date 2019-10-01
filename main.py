@@ -21,7 +21,7 @@ WIND = 5
 BATCH = 0
 RLS = 1
 RLS_MOD = 2
-RLS_MTL = 3
+MTL = 3
 
 VERSION_NAME = ['BATCH', 'RLS', 'RLS_MOD', 'MTL']
 
@@ -56,9 +56,9 @@ def plot_graph(y, y_label, x_label, file_name, y_aux=None, legend=None, legend_a
 
 def read_parameters():
     try:
-        algorithm = int(input('Enter the version of eEVM to run:\n1- Batch\n2- RLS\n3- RLS_mod\n4- RLS_MTL (default)\n')) - 1
+        algorithm = int(input('Enter the version of eEVM to run:\n1- Batch\n2- RLS\n3- RLS_mod\n4- MTL (default)\n')) - 1
     except ValueError:
-        algorithm = RLS_MTL
+        algorithm = MTL
 
     try:
         dataset = int(input('Enter the dataset to be tested:\n1- Nonlinear Dynamic Plant Identification With Time-Varying Characteristics (default)\n' + 
@@ -115,6 +115,26 @@ def read_parameters():
         window_size = int(input('Enter the size of the window (default value = 4): '))
     except ValueError:
         window_size = 4
+    
+    if algorithm == MTL:
+        try:
+            rho_1 = int(input('Enter the rho_1 (default value = 1): '))
+        except ValueError:
+            rho_1 = 1
+
+        try:
+            rho_2 = int(input('Enter the rho_2 (default value = 0): '))
+        except ValueError:
+            rho_2 = 0
+
+        try:
+            rho_3 = int(input('Enter the rho_3 (default value = 0): '))
+        except ValueError:
+            rho_3 = 0
+    else:
+        rho_1 = None
+        rho_2 = None
+        rho_3 = None
 
     register_experiment = input('Register the experiment? (default value = true): ')
 
@@ -128,9 +148,9 @@ def read_parameters():
     except ValueError:
         plot_frequency = -1
     
-    return [algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, register_experiment, plot_frequency]
+    return [algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, plot_frequency]
 
-def run(algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, register_experiment, training, plot_frequency):
+def run(algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, training, plot_frequency):
     mlflow.set_experiment(experiment_name)
 
     for site in sites:
@@ -200,8 +220,8 @@ def run(algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau,
             model = eEVM_RLS(sigma, tau, refresh_rate, window_size)
         elif algorithm == RLS_MOD:
             model = eEVM_RLS_mod(sigma, tau, refresh_rate, window_size)        
-        elif algorithm == RLS_MTL:
-            model = eEVM_MTL(sigma, tau, refresh_rate, window_size)                    
+        elif algorithm == MTL:
+            model = eEVM_MTL(sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3)                    
 
         predictions = np.zeros((y.shape[0], 1))
         number_of_clusters = np.zeros((y.shape[0], 1))
@@ -244,5 +264,5 @@ def run(algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau,
             mlflow.end_run()        
 
 if __name__ == "__main__":
-    [algorithm, dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, register_experiment, plot_frequency] = read_parameters()
-    run(algorithm, dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, register_experiment, False, plot_frequency)
+    [algorithm, dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, plot_frequency] = read_parameters()
+    run(algorithm, dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, False, plot_frequency)
