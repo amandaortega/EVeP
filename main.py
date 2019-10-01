@@ -96,41 +96,34 @@ def read_parameters():
     else:
         dim = -1
 
-    try:
-        sigma = float(input('Enter the sigma (default value = 0.5): '))
-    except ValueError:
-        sigma = 0.5
+    sigma = list(map(float, input('Enter the sigma (default value = 0.5): ').split()))
+    if len(sigma) == 0:
+        sigma = [0.5]
 
-    try:
-        tau = int(input('Enter the tau (default value = 300): '))
-    except ValueError:
-        tau = 300
+    tau = list(map(int, input('Enter the tau (default value = 300): ').split()))
+    if len(tau) == 0:
+        tau = [300]
 
-    try:
-        refresh_rate = int(input('Enter the refresh_rate (default value = 50): '))
-    except ValueError:
-        refresh_rate = 50
+    refresh_rate = list(map(int, input('Enter the refresh_rate (default value = 50): ').split()))
+    if len(refresh_rate) == 0:
+        refresh_rate = [50]
 
-    try:
-        window_size = int(input('Enter the size of the window (default value = 4): '))
-    except ValueError:
-        window_size = 4
+    window_size = list(map(int, input('Enter the size of the window (default value = 4): ').split()))
+    if len(window_size) == 0:
+        window_size = [4]
     
-    if algorithm == MTL:
-        try:
-            rho_1 = int(input('Enter the rho_1 (default value = 1): '))
-        except ValueError:
-            rho_1 = 1
+    if algorithm == MTL:        
+        rho_1 = list(map(int, input('Enter the rho_1 (default value = 1): ').split()))
+        if len(rho_1) == 0:
+            rho_1 = [1]
 
-        try:
-            rho_2 = int(input('Enter the rho_2 (default value = 0): '))
-        except ValueError:
-            rho_2 = 0
+        rho_2 = list(map(int, input('Enter the rho_2 (default value = 0): ').split()))
+        if len(rho_2) == 0:
+            rho_2 = [0]
 
-        try:
-            rho_3 = int(input('Enter the rho_3 (default value = 0): '))
-        except ValueError:
-            rho_3 = 0
+        rho_3 = list(map(int, input('Enter the rho_3 (default value = 0): ').split()))
+        if len(rho_3) == 0:
+            rho_3 = [0]
     else:
         rho_1 = None
         rho_2 = None
@@ -264,5 +257,16 @@ def run(algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau,
             mlflow.end_run()        
 
 if __name__ == "__main__":
-    [algorithm, dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, plot_frequency] = read_parameters()
-    run(algorithm, dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, False, plot_frequency)
+    [algorithm, dataset, site, input_path, experiment_name, dim, sigmas, taus, refresh_rates, window_sizes, rho_1s, rho_2s, rho_3s, register_experiment, plot_frequency] = read_parameters()
+
+    for sigma in sigmas:
+        for tau in taus:
+            for refresh_rate in refresh_rates:
+                for window_size in window_sizes:
+                    if algorithm == MTL:
+                        for rho_1 in rho_1s:
+                            for rho_2 in rho_2s:
+                                for rho_3 in rho_3s:
+                                    run(algorithm, dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, False, plot_frequency)
+                    else:
+                        run(algorithm, dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1s, rho_2s, rho_3s, register_experiment, False, plot_frequency)
