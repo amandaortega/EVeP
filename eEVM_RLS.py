@@ -42,7 +42,6 @@ class eEVM_RLS(object):
         self.last_update = list()
         self.theta = list()
         self.cluster = list()
-        self.R = None
         self.qty_samples = list()
         self.P = list()
 

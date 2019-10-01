@@ -5,6 +5,7 @@
 """
 
 import libmr
+import matlab.engine
 from matplotlib import pyplot, cm
 from matplotlib.patches import Circle
 from mpl_toolkits.mplot3d import Axes3D, art3d
@@ -23,13 +24,16 @@ class eEVM_MTL(object):
     """
 
     # Model initialization
-    def __init__(self, sigma=0.5, tau=75, refresh_rate=50, window_size=np.Inf):        
+    def __init__(self, sigma=0.5, tau=75, refresh_rate=50, window_size=np.Inf, rho_1=1, rho_2=0, rho_3=0):        
         # Setting EVM algorithm parameters
         self.sigma = sigma
         self.tau = tau
         self.refresh_rate = refresh_rate
         self.window_size = window_size    
         self.last_cluster_id = -1
+        self.rho_1 = rho_1
+        self.rho_2 = rho_2
+        self.eng = matlab.engine.start_matlab()
 
         self.mr_x = list()
         self.mr_y = list()
@@ -45,7 +49,7 @@ class eEVM_MTL(object):
         self.qty_samples = list()
 
     # Initialization of a new instance of EV.
-    def add_EV(self, x0, y0, step, cluster, X=None, y=None, step_samples=None, X_ext=None, y_ext=None):
+    def add_EV(self, x0, y0, step, cluster, X=None, y=None, step_samples=None, X_ext=None, y_ext=None, update_theta=True):
         self.mr_x.append(libmr.MR())
         self.mr_y.append(libmr.MR())
         self.x0.append(x0)
@@ -62,13 +66,13 @@ class eEVM_MTL(object):
             self.fit(len(self.cluster) - 1, X_ext, y_ext)
 
         if X is not None:
-            self.add_sample_to_EV(len(self.x0) - 1, X, y, step_samples)
+            self.add_sample_to_EV(len(self.x0) - 1, X, y, step_samples, update_theta)
         else:
             # coefficients of the consequent part        
-            self.theta[-1] = np.insert(self.theta[-1], 0, y0, axis=1).T
+            self.theta[-1] = np.insert(self.theta[-1], 0, y0, axis=1)
 
     # Add the sample(s) (X, y) as covered by the extreme vector. Remove repeated points.
-    def add_sample_to_EV(self, index, X, y, step):
+    def add_sample_to_EV(self, index, X, y, step, update_theta=True):
         self.X[index] = np.concatenate((self.X[index], X))
         self.y[index] = np.concatenate((self.y[index], y))
         self.step[index] = np.concatenate((self.step[index], step))          
@@ -89,7 +93,9 @@ class eEVM_MTL(object):
 
         self.last_update[index] = np.max(self.step[index])
         self.qty_samples[index] = self.X[index].shape[0]
-        self.theta[index] = np.linalg.lstsq(np.insert(self.X[index], 0, 1, axis=1), self.y[index])[0]    
+
+        if update_theta:
+            self.update_theta()
 
     def delete_from_list(self, list_, indexes):
         for i in sorted(indexes, reverse=True):
@@ -178,13 +184,15 @@ class eEVM_MTL(object):
                     clusters_to_refresh.append(self.cluster[index])
 
                 for i in reversed(range(len(index_to_merge))):
-                    self.add_sample_to_EV(index, self.X[index_to_merge[i]], self.y[index_to_merge[i]], self.step[index_to_merge[i]])
+                    self.add_sample_to_EV(index, self.X[index_to_merge[i]], self.y[index_to_merge[i]], self.step[index_to_merge[i]], False)
                     self.remove_EV([index_to_merge[i]])
             
             index = index + 1
 
         if len(clusters_to_refresh) > 0:
             self.refresh(np.unique(np.array(clusters_to_refresh)))
+            self.update_R()
+            self.update_theta()
 
     # Plot the granules that form the antecedent part of the rules
     def plot(self, name_figure):
@@ -251,7 +259,7 @@ class eEVM_MTL(object):
 
     # Predict the local output of x based on the linear regression of the samples stored at the EV
     def predict_EV(self, index, x):
-        return np.insert(x, 0, 1).reshape(1, -1) @ self.theta[index]        
+        return np.insert(x, 0, 1).reshape(1, -1) @ self.theta[index].T
 
     # Refresh the EVs of the clusters informed by parameter based on the distribution of the samples
     def refresh(self, clusters):
@@ -312,7 +320,7 @@ class eEVM_MTL(object):
 
                 # if it isn't an outlier
                 if new_points.shape[0] > 0:
-                    self.add_EV(X_in[ind, :].reshape(1, -1), y_in[ind].reshape(1, -1), step_in[ind].reshape(1, -1), cluster, X_in[new_points], y_in[new_points], step_in[new_points])
+                    self.add_EV(X_in[ind, :].reshape(1, -1), y_in[ind].reshape(1, -1), step_in[ind].reshape(1, -1), cluster, X_in[new_points], y_in[new_points], step_in[new_points], update_theta=False)
 
                     self.mr_x[-1] = mr_x_temp[ind]
                     self.mr_y[-1] = mr_y_temp[ind]
@@ -344,7 +352,8 @@ class eEVM_MTL(object):
                 indexes_to_remove.append(index)
 
         if len(indexes_to_remove) > 0:
-            self.remove_EV(indexes_to_remove)    
+            self.remove_EV(indexes_to_remove)
+            self.update_R()
 
     # Sort the EVs based on the number of samples belonged to them
     def sort_EVs(self):
@@ -405,6 +414,8 @@ class eEVM_MTL(object):
                     self.add_EV(x, y, step, cluster, X_ext=np.concatenate((x_min, x_max), axis=0), y_ext=np.concatenate((y_min, y_max), axis=0))        
                 else:
                     self.add_EV(x, y, step, cluster, X_ext=np.concatenate((x_min, x_max, X_ext), axis=0), y_ext=np.concatenate((y_min, y_max, y_ext), axis=0))        
+                
+                self.update_R()
             
             self.update_EVs(cluster)
 
@@ -420,3 +431,30 @@ class eEVM_MTL(object):
 
                 if X_ext.shape[0] > 0:
                     self.fit(index, X_ext, y_ext)
+    
+    def update_R(self):
+        # select just the indexes of the EVs which belong to the same cluster
+        index_sets = [np.argwhere(i==self.cluster) for i in np.unique(self.cluster) if np.argwhere(i==self.cluster).size > 1]
+        self.R = None
+
+        for cluster in index_sets:
+            for i in range(cluster.size):
+                for j in range(i + 1, cluster.size):
+                    edge = np.zeros((len(self.cluster), 1))
+                    edge[cluster[i][0]] = 1
+                    edge[cluster[j][0]] = -1
+
+                    if self.R is None:
+                        self.R = edge
+                    else:
+                        self.R = np.concatenate((self.R, edge), axis=1)
+
+    def update_theta(self):
+        X = [matlab.double(np.insert(self.X[i], 0, 1, axis=1).tolist()) for i in range(len(self.X))]
+        y = [matlab.double(self.y[i].tolist()) for i in range(len(self.y))]
+        
+        if self.R is None:
+            self.theta = list(np.array(self.eng.Least_SRMTL(X, y, 0, self.rho_1, self.rho_2)).T)
+        else:
+            self.theta = list(np.array(self.eng.Least_SRMTL(X, y, matlab.double(self.R.tolist()), self.rho_1, self.rho_2)).T)
+        self.theta = [w.reshape(1, -1) for w in self.theta]
