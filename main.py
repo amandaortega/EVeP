@@ -154,6 +154,11 @@ def read_parameters():
 def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, plot_frequency):
     mlflow.set_experiment(experiment_name)
 
+    if rho_1 is None:
+        print("eEVM_" + VERSION_NAME[algorithm] + " - " + experiment_name + ": sigma = " + str(sigma) + ", tau = " + str(tau) + ", refresh_rate = " + str(refresh_rate) + ", window_size = " + str(window_size))
+    else:
+        print("eEVM_" + VERSION_NAME[algorithm] + " - " + experiment_name + ": sigma = " + str(sigma) + ", tau = " + str(tau) + ", refresh_rate = " + str(refresh_rate) + ", window_size = " + str(window_size) + ", rho_1 = " + str(rho_1) + ", rho_2 = " + str(rho_2) + ", rho_3 = " + str(rho_3))
+
     for site in sites:
         print('Site ' + site)    
         
@@ -212,7 +217,7 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
 
             artifact_uri = mlflow.get_artifact_uri()
             # removing the 'file://'
-            artifact_uri = artifact_uri[7:] + '/'
+            artifact_uri = artifact_uri[7:] + '/'            
 
             mlflow.log_param("dim", dim)
             mlflow.log_param("sigma", sigma)
@@ -259,13 +264,22 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
 
             plot_graph(number_of_clusters, 'Quantity', 'Step', artifact_uri + 'rules.png', number_of_EVs, "Number of clusters", 'Number of EVs')
             plot_graph(RMSE, 'RMSE', 'Step', artifact_uri + 'RMSE.png')
-            plot_graph(y, 'Prediction', 'Step', artifact_uri + 'predictions.png', predictions, "y", "p")
-            
+            plot_graph(y, 'Prediction', 'Step', artifact_uri + 'predictions.png', predictions, "y", "p")        
+
             mlflow.log_metric('RMSE', RMSE[-1, 0])
             mlflow.log_metric('NDEI', RMSE[-1, 0] / np.std(y))            
             mlflow.log_metric('Mean_clusters', np.mean(number_of_clusters))        
             mlflow.log_metric('Mean_EVs', np.mean(number_of_EVs))
             mlflow.log_metric('Last_No_EV', number_of_EVs[-1, 0])
+
+            if algorithm != MTL:
+                # x0, y0, shape_x, scale_x, shape_y, scale_y, theta, hr, sigma, tau, window
+                mlflow.log_metric('Last_No_parameters', number_of_EVs[-1, 0] * (6 + dim + 1) + 4)
+                mlflow.log_metric('Mean_parameters', np.mean(number_of_EVs) * (6 + dim + 1) + 4)
+            else:
+                # x0, y0, shape_x, scale_x, shape_y, scale_y, theta, hr, sigma, tau, window, rho_1, rho_2, rho_3
+                mlflow.log_metric('Last_No_parameters', number_of_EVs[-1, 0] * (6 + dim + 1) + 7)
+                mlflow.log_metric('Mean_parameters', np.mean(number_of_EVs) * (6 + dim + 1) + 7)                
 
             mlflow.end_run()        
 
