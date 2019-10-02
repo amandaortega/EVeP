@@ -25,6 +25,9 @@ MTL = 3
 
 VERSION_NAME = ['BATCH', 'RLS', 'RLS_MOD', 'MTL']
 
+TRAINING = 0
+TEST = 1
+
 def read_csv(file, dataset):
     database = []
 
@@ -88,6 +91,11 @@ def read_parameters():
         input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/vento/USA/'
         experiment_name = 'Wind speed'
 
+    try:
+        mode = int(input('Run the 1- training or 2- test (default) dataset?\n')) - 1
+    except ValueError:
+        mode = TEST    
+
     if dataset == TEMPERATURE or dataset == WIND:
         try:
             dim = int(input('Enter the number of dimensions of the input (default value = 12): '))
@@ -141,16 +149,16 @@ def read_parameters():
     except ValueError:
         plot_frequency = -1
     
-    return [algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, plot_frequency]
+    return [algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, plot_frequency]
 
-def run(algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, training, plot_frequency):
+def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, plot_frequency):
     mlflow.set_experiment(experiment_name)
 
     for site in sites:
         print('Site ' + site)    
         
         if dataset in [PLANT_IDENTIFICATION, MACKEY_GLASS, SP_500]:
-            if training:
+            if mode == TRAINING:
                 X = read_csv(input_path + 'base/X_train.csv', dataset)
                 y = read_csv(input_path + 'base/Y_train.csv', dataset)
             else:
@@ -167,7 +175,7 @@ def run(algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau,
             if dataset == TEMPERATURE:
                 path = input_path + 'bases/' + site + '/' + str(dim)
             else:
-                if training:
+                if mode == TRAINING:
                     path = input_path + 'bases/' + site + '/wind_speed/hour/' + site + '-2011/' + str(dim)
                 else:
                     path = input_path + 'bases/' + site + '/wind_speed/hour/' + site + '-2012/' + str(dim)
@@ -195,7 +203,12 @@ def run(algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau,
             else:
                 mlflow.set_tag("plots", 'yes')
             
-            mlflow.set_tag("alg", "eEVM_" + VERSION_NAME[algorithm])                
+            mlflow.set_tag("alg", "eEVM_" + VERSION_NAME[algorithm])
+
+            if mode == TRAINING:
+                mlflow.set_tag("mode", "training")
+            else:
+                mlflow.set_tag("mode", "test")
 
             artifact_uri = mlflow.get_artifact_uri()
             # removing the 'file://'
@@ -257,7 +270,7 @@ def run(algorithm, dataset, sites, input_path, experiment_name, dim, sigma, tau,
             mlflow.end_run()        
 
 if __name__ == "__main__":
-    [algorithm, dataset, site, input_path, experiment_name, dim, sigmas, taus, refresh_rates, window_sizes, rho_1s, rho_2s, rho_3s, register_experiment, plot_frequency] = read_parameters()
+    [algorithm, dataset, mode, site, input_path, experiment_name, dim, sigmas, taus, refresh_rates, window_sizes, rho_1s, rho_2s, rho_3s, register_experiment, plot_frequency] = read_parameters()
 
     for sigma in sigmas:
         for tau in taus:
@@ -267,6 +280,6 @@ if __name__ == "__main__":
                         for rho_1 in rho_1s:
                             for rho_2 in rho_2s:
                                 for rho_3 in rho_3s:
-                                    run(algorithm, dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, False, plot_frequency)
+                                    run(algorithm, dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, plot_frequency)
                     else:
-                        run(algorithm, dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1s, rho_2s, rho_3s, register_experiment, False, plot_frequency)
+                        run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1s, rho_2s, rho_3s, register_experiment, plot_frequency)
