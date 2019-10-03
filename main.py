@@ -121,15 +121,15 @@ def read_parameters():
         window_size = [4]
     
     if algorithm == MTL:        
-        rho_1 = list(map(int, input('Enter the rho_1 (default value = 1): ').split()))
+        rho_1 = list(map(float, input('Enter the rho_1 (default value = 1): ').split()))
         if len(rho_1) == 0:
             rho_1 = [1]
 
-        rho_2 = list(map(int, input('Enter the rho_2 (default value = 0): ').split()))
+        rho_2 = list(map(float, input('Enter the rho_2 (default value = 0): ').split()))
         if len(rho_2) == 0:
             rho_2 = [0]
 
-        rho_3 = list(map(int, input('Enter the rho_3 (default value = 0): ').split()))
+        rho_3 = list(map(float, input('Enter the rho_3 (default value = 0): ').split()))
         if len(rho_3) == 0:
             rho_3 = [0]
     else:
@@ -170,12 +170,6 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
                 X = read_csv(input_path + 'base/X_test.csv', dataset)
                 y = read_csv(input_path + 'base/Y_test.csv', dataset)                
 
-            X_min = X
-            X_max = X
-                            
-            y_min = y
-            y_max = y                
-
         elif dataset in [TEMPERATURE, WIND]:
             if dataset == TEMPERATURE:
                 path = input_path + 'bases/' + site + '/' + str(dim)
@@ -187,12 +181,6 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
 
             X  = read_csv(path + '/X_real.csv', dataset)
             y  = read_csv(path + '/Y_real.csv', dataset).reshape(-1)        
-
-            X_min = read_csv(path + '/XSuppInf.csv', dataset)
-            X_max = read_csv(path + '/XSuppSup.csv', dataset)
-            
-            y_min = read_csv(path + '/YSuppInf.csv', dataset)
-            y_max = read_csv(path + '/YSuppSup.csv', dataset)    
 
         dim = X.shape[1]
 
@@ -225,6 +213,11 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
             mlflow.log_param("refresh_rate", refresh_rate)
             mlflow.log_param("window_size", window_size)
 
+            if algorithm == MTL:
+                mlflow.log_param("rho_1", rho_1)
+                mlflow.log_param("rho_2", rho_2)
+                mlflow.log_param("rho_3", rho_3)
+
         if algorithm == BATCH:
             model = eEVM(sigma, tau, refresh_rate, window_size)
         elif algorithm == RLS:
@@ -240,8 +233,8 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
         RMSE = np.zeros((y.shape[0], 1))
 
         for i in tqdm(range(y.shape[0])):
-            predictions[i, 0] = model.predict(X[i, :].reshape(1, -1))        
-            model.train(X_min[i, :].reshape(1, -1), X[i, :].reshape(1, -1), X_max[i, :].reshape(1, -1), y_min[i].reshape(1, -1), y[i].reshape(1, -1), y_max[i].reshape(1, -1), np.array([[i]]))
+            predictions[i, 0] = model.predict(X[i, :].reshape(1, -1))
+            model.train(X[i, :].reshape(1, -1), y[i].reshape(1, -1), np.array([[i]]))
 
             # Saving statistics for the step i
             number_of_clusters[i, 0] = model.get_number_of_clusters()
@@ -294,6 +287,6 @@ if __name__ == "__main__":
                         for rho_1 in rho_1s:
                             for rho_2 in rho_2s:
                                 for rho_3 in rho_3s:
-                                    run(algorithm, dataset, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, plot_frequency)
+                                    run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, plot_frequency)
                     else:
                         run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1s, rho_2s, rho_3s, register_experiment, plot_frequency)

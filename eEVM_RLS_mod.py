@@ -99,7 +99,7 @@ class eEVM_RLS_mod(object):
         self.x0[index] = np.average(self.X[index], axis=0).reshape(1, -1)
         self.y0[index] = np.average(self.y[index], axis=0).reshape(1, -1)
 
-        (X_ext, y_ext) = self.get_external_samples(self.cluster[index])
+        (X_ext, y_ext) = self.get_external_samples(index)
         if X_ext.size > 0:
             self.fit(index, X_ext, y_ext)
 
@@ -140,18 +140,17 @@ class eEVM_RLS_mod(object):
         return self.mr_x[index].inv(percentage)
 
     # Obtain the samples that not belong to the cluster given by parameter but are part of the other clusters of the system
-    def get_external_samples(self, cluster=None):
-        if cluster is None:
+    def get_external_samples(self, index=None):
+        if index is None:
             X = np.concatenate(self.X)
             y = np.concatenate(self.y)
-        else:      
-            if self.get_number_of_clusters() > 1:
-                indexes = np.where(np.array(self.cluster) != cluster)
-                X = np.concatenate(list(np.array(self.X)[indexes]))
-                y = np.concatenate(list(np.array(self.y)[indexes]))
+        else:
+            if self.get_number_of_EVs() > 1:
+                X = np.concatenate(self.X[:index] + self.X[index + 1 :])
+                y = np.concatenate(self.y[:index] + self.y[index + 1 :])
             else:
                 X = np.array([])
-                y = np.array([])
+                y = np.array([])                
 
         return (X, y)
 
@@ -224,7 +223,7 @@ class eEVM_RLS_mod(object):
 
         colors = cm.get_cmap('tab20', len(np.unique(np.array(self.cluster))))
 
-        for i in range(self.mr_x):
+        for i in range(self.get_number_of_EVs()):
             self.plot_EV(i, ax, '.', colors(self.cluster[i]), z_bottom)
         
         # Save figure
@@ -324,10 +323,10 @@ class eEVM_RLS_mod(object):
         self.qty_samples = list(np.array(self.qty_samples)[new_order])
 
     # Evolves the model (main method)
-    def train(self, x_min, x, x_max, y_min, y, y_max, step):
+    def train(self, x, y, step):
         # empty antecedents
         if len(self.mr_x) == 0:
-            self.add_EV(x, y, step, 0, X_ext=np.concatenate((x_min, x_max), axis=0), y_ext=np.concatenate((y_min, y_max), axis=0))
+            self.add_EV(x, y, step, 0)
             self.last_cluster_id = 0
         else:
             best_EV = None
@@ -361,24 +360,20 @@ class eEVM_RLS_mod(object):
 
             # Create a new EV in the respective cluster
             if best_EV is None:
-                (X_ext, y_ext) = self.get_external_samples(cluster)
-                
-                if X_ext.size == 0:
-                    self.add_EV(x, y, step, cluster, X_ext=np.concatenate((x_min, x_max), axis=0), y_ext=np.concatenate((y_min, y_max), axis=0))        
-                else:
-                    self.add_EV(x, y, step, cluster, X_ext=np.concatenate((x_min, x_max, X_ext), axis=0), y_ext=np.concatenate((y_min, y_max, y_ext), axis=0))        
+                (X_ext, y_ext) = self.get_external_samples()                
+                self.add_EV(x, y, step, cluster, X_ext=X_ext, y_ext=y_ext)
             
-            self.update_EVs(cluster)
+            self.update_EVs(index)
 
         if step != 0 and (step % self.refresh_rate) == 0:      
             self.remove_outdated_EVs(step[0, 0] - self.refresh_rate)
             self.merge()
 
     # Update the psi curve of the EVs that do not belong to the model_selected
-    def update_EVs(self, cluster):
-        for index in range(len(self.mr_x)):
-            if self.cluster[index] != cluster:
-                (X_ext, y_ext) = self.get_external_samples(self.cluster[index])
+    def update_EVs(self, index):
+        for i in range(len(self.mr_x)):
+            if i != index:
+                (X_ext, y_ext) = self.get_external_samples(index)
 
                 if X_ext.shape[0] > 0:
                     self.fit(index, X_ext, y_ext)

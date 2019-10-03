@@ -82,7 +82,7 @@ class eEVM(object):
         self.x0[index] = np.average(self.X[index], axis=0).reshape(1, -1)
         self.y0[index] = np.average(self.y[index], axis=0).reshape(1, -1)
 
-        (X_ext, y_ext) = self.get_external_samples(self.cluster[index])
+        (X_ext, y_ext) = self.get_external_samples(index)
         if X_ext.size > 0:
             self.fit(index, X_ext, y_ext)
 
@@ -123,18 +123,17 @@ class eEVM(object):
         return self.mr_x[index].inv(percentage)
 
     # Obtain the samples that not belong to the cluster given by parameter but are part of the other clusters of the system
-    def get_external_samples(self, cluster=None):
-        if cluster is None:
+    def get_external_samples(self, index=None):
+        if index is None:
             X = np.concatenate(self.X)
             y = np.concatenate(self.y)
-        else:      
-            if self.get_number_of_clusters() > 1:
-                indexes = np.where(np.array(self.cluster) != cluster)
-                X = np.concatenate(list(np.array(self.X)[indexes]))
-                y = np.concatenate(list(np.array(self.y)[indexes]))
+        else:
+            if self.get_number_of_EVs() > 1:
+                X = np.concatenate(self.X[:index] + self.X[index + 1 :])
+                y = np.concatenate(self.y[:index] + self.y[index + 1 :])
             else:
                 X = np.array([])
-                y = np.array([])
+                y = np.array([])                
 
         return (X, y)
 
@@ -182,9 +181,6 @@ class eEVM(object):
             
             index = index + 1
 
-        if len(clusters_to_refresh) > 0:
-            self.refresh(np.unique(np.array(clusters_to_refresh)))
-
     # Plot the granules that form the antecedent part of the rules
     def plot(self, name_figure):
         fig = pyplot.figure()
@@ -197,7 +193,7 @@ class eEVM(object):
 
         colors = cm.get_cmap('tab20', len(np.unique(np.array(self.cluster))))
 
-        for i in range(self.mr_x):
+        for i in range(self.get_number_of_EVs()):
             self.plot_EV(i, ax, '.', colors(self.cluster[i]), z_bottom)
         
         # Save figure
@@ -252,70 +248,6 @@ class eEVM(object):
     def predict_EV(self, index, x):
         return np.insert(x, 0, 1).reshape(1, -1) @ self.theta[index]        
 
-    # Refresh the EVs of the clusters informed by parameter based on the distribution of the samples
-    def refresh(self, clusters):
-        if len(clusters) > 0 and len(np.unique(self.cluster)) > 1:
-            for cluster in clusters:
-                self.refresh_cluster(cluster)          
-
-    def refresh_cluster(self, cluster):
-        (X_ext, y_ext) = self.get_external_samples(cluster)
-
-        if X_ext.shape[0] > 0:
-            (X_in, y_in, step_in) = self.get_internal_samples(cluster)
-
-            self.remove_cluster(cluster)
-
-            mr_x_temp = list()
-            mr_y_temp = list()
-
-            # calcula os pares de distâncias entre as amostras da classe atual e as amostras das outras classes
-            D_x = sklearn.metrics.pairwise.pairwise_distances(X_in, X_ext)
-            D_y = sklearn.metrics.pairwise.pairwise_distances(y_in, y_ext)
-
-            # para cada amostra pertencente à classe Cl, estima os parâmetros shape e scale com base na metade da distância
-            # das tau amostras mais próximas não pertencentes a Cl
-            for i in range(X_in.shape[0]):
-                mr_x_temp.append(libmr.MR())
-                mr_y_temp.append(libmr.MR())
-                mr_x_temp[-1].fit_low(1/2 * D_x[i], min(D_x[i].shape[0], self.tau))
-                mr_y_temp[-1].fit_low(1/2 * D_y[i], min(D_y[i].shape[0], self.tau))
-
-            Nl = X_in.shape[0]
-            U = range(Nl)
-            S = np.zeros((Nl, Nl))
-
-            # percorre todas as amostras e verifica se a probabilidade gerada pela função psi da distância entre cada par 
-            # de pontos é maior ou igual a sigma
-            for i in U:
-                S_i = np.minimum(mr_x_temp[i].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(X_in[i, :].reshape(1, -1), X_in).reshape(-1)), mr_y_temp[i].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(y_in[i, :].reshape(1, -1), y_in).reshape(-1)))
-                S[i, :] = S_i > self.sigma
-            
-            C = []
-
-            # enquanto os pontos representados pelos valores extremos não abrangerem o universo das amostras
-            while (set(C) != set(U)):                
-                # obtém o valor extremo que representa a maior quantidade de pontos ainda não cobertos
-                ind = np.argmax(np.sum(S, axis=1), axis=0)
-
-                # add the new covered points that were not already covered by any other EV
-                new_points = np.setdiff1d(np.asarray(np.where(S[ind])).reshape(-1), C)
-                C = np.append(C, new_points)
-                C = C.astype(int)
-
-                S[new_points, :] = np.zeros((len(new_points), Nl))
-                S[:, new_points] = np.zeros((Nl, len(new_points)))
-
-                # add the samples covered by the EV, excluding the origin point which was already added
-                new_points = new_points[new_points != ind]
-
-                # if it isn't an outlier
-                if new_points.shape[0] > 0:
-                    self.add_EV(X_in[ind, :].reshape(1, -1), y_in[ind].reshape(1, -1), step_in[ind].reshape(1, -1), cluster, X_in[new_points], y_in[new_points], step_in[new_points])
-
-                    self.mr_x[-1] = mr_x_temp[ind]
-                    self.mr_y[-1] = mr_y_temp[ind]
-
     # Remove all the the EVs belonging to the cluster informed by parameter
     def remove_cluster(self, cluster):
         self.remove_EV(list(np.where(np.array(self.cluster) == cluster)[0]))
@@ -361,10 +293,10 @@ class eEVM(object):
         self.qty_samples = list(np.array(self.qty_samples)[new_order])
 
     # Evolves the model (main method)
-    def train(self, x_min, x, x_max, y_min, y, y_max, step):
+    def train(self, x, y, step):
         # empty antecedents
         if len(self.mr_x) == 0:
-            self.add_EV(x, y, step, 0, X_ext=np.concatenate((x_min, x_max), axis=0), y_ext=np.concatenate((y_min, y_max), axis=0))
+            self.add_EV(x, y, step, 0)
             self.last_cluster_id = 0
         else:
             best_EV = None
@@ -398,24 +330,20 @@ class eEVM(object):
 
             # Create a new EV in the respective cluster
             if best_EV is None:
-                (X_ext, y_ext) = self.get_external_samples(cluster)
-                
-                if X_ext.size == 0:
-                    self.add_EV(x, y, step, cluster, X_ext=np.concatenate((x_min, x_max), axis=0), y_ext=np.concatenate((y_min, y_max), axis=0))        
-                else:
-                    self.add_EV(x, y, step, cluster, X_ext=np.concatenate((x_min, x_max, X_ext), axis=0), y_ext=np.concatenate((y_min, y_max, y_ext), axis=0))        
+                (X_ext, y_ext) = self.get_external_samples()                
+                self.add_EV(x, y, step, cluster, X_ext=X_ext, y_ext=y_ext)
             
-            self.update_EVs(cluster)
+            self.update_EVs(index)
 
         if step != 0 and (step % self.refresh_rate) == 0:      
             self.remove_outdated_EVs(step[0, 0] - self.refresh_rate)
             self.merge()
 
     # Update the psi curve of the EVs that do not belong to the model_selected
-    def update_EVs(self, cluster):
-        for index in range(len(self.mr_x)):
-            if self.cluster[index] != cluster:
-                (X_ext, y_ext) = self.get_external_samples(self.cluster[index])
+    def update_EVs(self, index):
+        for i in range(len(self.mr_x)):
+            if i != index:
+                (X_ext, y_ext) = self.get_external_samples(index)
 
                 if X_ext.shape[0] > 0:
                     self.fit(index, X_ext, y_ext)
