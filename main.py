@@ -144,9 +144,12 @@ def read_parameters():
     else:
         register_experiment = True
     
-    try:
-        plot_frequency = int(input('Enter the frequency to generate the plots (default = -1 in case of no plots): '))
-    except ValueError:
+    if register_experiment:
+        try:
+            plot_frequency = int(input('Enter the frequency to generate the plots (default = -1 in case of no plots): '))
+        except ValueError:
+            plot_frequency = -1
+    else:
         plot_frequency = -1
     
     return [algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, plot_frequency]

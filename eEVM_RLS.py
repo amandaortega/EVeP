@@ -190,9 +190,6 @@ class eEVM_RLS(object):
         fig = pyplot.figure()
         ax = fig.add_subplot(111, projection='3d')
         z_bottom = -0.3
-        ax.set_zlim(bottom=z_bottom, top=1)
-        ax.set_xlim(left=0, right=1)
-        ax.set_ylim(bottom=0, top=1)
         ax.set_zticklabels("")        
 
         colors = cm.get_cmap('tab20', len(np.unique(np.array(self.cluster))))
@@ -224,7 +221,7 @@ class eEVM_RLS(object):
         X = self.x0[index][0, 0] + radius_matrix * np.cos(theta_matrix)
         Y = self.x0[index][0, 1] + radius_matrix * np.sin(theta_matrix)
         points = np.array([np.array([X, Y])[0, :, :].reshape(-1), np.array([X, Y])[1, :, :].reshape(-1)]).T
-        Z = self.firing_degree(points)
+        Z = self.firing_degree(index, points)
         ax.plot_surface(X, Y, Z.reshape((X.shape[0], X.shape[1])), antialiased=False, cmap=cm.coolwarm, alpha=0.1)
 
     # Predict the output given the input sample x
