@@ -41,7 +41,6 @@ class eEVM(object):
         self.last_update = list()
         self.theta = list()
         self.cluster = list()
-        self.qty_samples = list()
 
     # Initialization of a new instance of EV.
     def add_EV(self, x0, y0, step, cluster, X=None, y=None, step_samples=None, X_ext=None, y_ext=None):
@@ -55,7 +54,6 @@ class eEVM(object):
         self.last_update.append(np.max(step))
         self.cluster.append(cluster)
         self.theta.append(np.zeros_like(x0))
-        self.qty_samples.append(0)
 
         if X_ext is not None:
             self.fit(len(self.cluster) - 1, X_ext, y_ext)
@@ -87,7 +85,6 @@ class eEVM(object):
             self.fit(index, X_ext, y_ext)
 
         self.last_update[index] = np.max(self.step[index])
-        self.qty_samples[index] = self.X[index].shape[0]
         self.theta[index] = np.linalg.lstsq(np.insert(self.X[index], 0, 1, axis=1), self.y[index])[0]    
 
     def delete_from_list(self, list_, indexes):
@@ -260,7 +257,6 @@ class eEVM(object):
         self.step = self.delete_from_list(self.step, index)
         self.last_update = self.delete_from_list(self.last_update, index)
         self.cluster = self.delete_from_list(self.cluster, index)
-        self.qty_samples = self.delete_from_list(self.qty_samples, index)
         self.theta = self.delete_from_list(self.theta, index)
 
     # Remove the EVs that didn't have any update in the last threshold steps
@@ -274,9 +270,9 @@ class eEVM(object):
         if len(indexes_to_remove) > 0:
             self.remove_EV(indexes_to_remove)    
 
-    # Sort the EVs based on the number of samples belonged to them
+    # Sort the EVs according to the last update
     def sort_EVs(self):
-        new_order = (-np.array(self.qty_samples)).argsort()
+        new_order = (-np.array(self.last_update)).argsort()
 
         self.mr_x = list(np.array(self.mr_x)[new_order])
         self.mr_y = list(np.array(self.mr_y)[new_order])
@@ -287,7 +283,6 @@ class eEVM(object):
         self.step = list(np.array(self.step)[new_order])
         self.last_update = list(np.array(self.last_update)[new_order])
         self.cluster = list(np.array(self.cluster)[new_order])
-        self.qty_samples = list(np.array(self.qty_samples)[new_order])
 
     # Evolves the model (main method)
     def train(self, x, y, step):
