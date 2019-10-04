@@ -145,10 +145,16 @@ def read_parameters():
         register_experiment = True
     
     if register_experiment:
-        try:
-            plot_frequency = int(input('Enter the frequency to generate the plots (default = -1 in case of no plots): '))
-        except ValueError:
+        plot_frequency = list(map(int, input('Enter the frequency or the intervals you want to generate the plots (default = -1 in case of no plots): ').split()))
+        if len(plot_frequency) == 0:
             plot_frequency = -1
+        elif len(plot_frequency) != 1:
+            plot = list()
+
+            for i in range(0, len(plot_frequency), 2):
+                plot = plot + list(range(plot_frequency[i], plot_frequency[i + 1]))
+            
+            plot_frequency = plot
     else:
         plot_frequency = -1
     
@@ -250,7 +256,10 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
                 RMSE[i, 0] = sqrt(mean_squared_error(y[1:i+1], predictions[1:i+1]))
 
             if plot_frequency != -1: 
-                if (i % plot_frequency) == 0:
+                if len(plot_frequency) == 1:
+                    if (i % plot_frequency) == 0:
+                        model.plot(artifact_uri + str(i) + '.png')
+                elif i in plot_frequency:
                     model.plot(artifact_uri + str(i) + '.png')
 
         if register_experiment:
