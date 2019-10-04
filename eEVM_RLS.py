@@ -324,10 +324,12 @@ class eEVM_RLS(object):
             if best_EV is not None:
                 self.add_sample_to_EV(best_EV, x, y, step)
                 cluster = self.cluster[best_EV]
+                index = best_EV
             # Create a new cluster
             elif cluster is None:
                 self.last_cluster_id = self.last_cluster_id + 1
-                cluster = self.last_cluster_id                
+                cluster = self.last_cluster_id      
+                index = self.get_number_of_EVs()
 
             # Create a new EV in the respective cluster
             if best_EV is None:
