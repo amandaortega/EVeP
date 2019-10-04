@@ -352,10 +352,10 @@ class eEVM_MTL(object):
     def update_EVs(self, index):
         for i in range(len(self.mr_x)):
             if i != index:
-                (X_ext, y_ext) = self.get_external_samples(index)
+                (X_ext, y_ext) = self.get_external_samples(i)
 
                 if X_ext.shape[0] > 0:
-                    self.fit(index, X_ext, y_ext)
+                    self.fit(i, X_ext, y_ext)
     
     def update_R(self):
         # select just the indexes of the EVs which belong to the same cluster

@@ -367,7 +367,7 @@ class eEVM_RLS_mod(object):
     def update_EVs(self, index):
         for i in range(len(self.mr_x)):
             if i != index:
-                (X_ext, y_ext) = self.get_external_samples(index)
+                (X_ext, y_ext) = self.get_external_samples(i)
 
                 if X_ext.shape[0] > 0:
-                    self.fit(index, X_ext, y_ext)
+                    self.fit(i, X_ext, y_ext)
