@@ -164,6 +164,9 @@ class eEVM_RLS_mod(object):
             for index in range(indexes.shape[1]):
                 lambda_[index] = self.firing_degree(indexes[0, index], x, y)
             
+            if np.sum(lambda_) == 0:
+                return lambda_.T
+
             return (lambda_ / np.sum(lambda_)).T
         return np.NaN
 

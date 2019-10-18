@@ -170,6 +170,7 @@ class eEVM_MTL(object):
     def merge(self):
         self.sort_EVs()
         index = 0
+        update_R = False
 
         while index < len(self.mr_x):
             if index + 1 < len(self.mr_x):
@@ -179,13 +180,16 @@ class eEVM_MTL(object):
                 S_index = self.firing_degree(index, x0, y0)
                 index_to_merge = np.where(S_index > self.sigma)[0] + index + 1
 
+                if index_to_merge.size > 0:
+                    update_R = True
+
                 for i in reversed(range(len(index_to_merge))):
                     self.add_sample_to_EV(index, self.X[index_to_merge[i]], self.y[index_to_merge[i]], self.step[index_to_merge[i]], False)
                     self.remove_EV([index_to_merge[i]])
             
             index = index + 1
 
-        if len(clusters_to_refresh) > 0:
+        if update_R:
             self.update_R()
             self.init_theta = 2
             self.update_theta()

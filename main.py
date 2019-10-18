@@ -64,6 +64,11 @@ def read_parameters():
         algorithm = MTL
 
     try:
+        mode = int(input('Run the 1- training or 2- test (default) dataset?\n')) - 1
+    except ValueError:
+        mode = TEST  
+
+    try:
         dataset = int(input('Enter the dataset to be tested:\n1- Nonlinear Dynamic Plant Identification With Time-Varying Characteristics (default)\n' + 
         '2- Mackey–Glass Chaotic Time Series (Long-Term Prediction)\n3- Online Prediction of S&P 500 Daily Closing Price\n' + 
         '4- Wheater temperature\n5- Wind speed\n'))
@@ -87,14 +92,12 @@ def read_parameters():
         input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/temperatura/'
         experiment_name = 'Wheater temperature'
     else:
-        sites = ["9773", "9851", "10245", "10290", "10404", "33928", "34476", "35020", "36278", "37679", "120525", "121246", "121466", "122379", "124266"]
+        if mode == TEST:
+            sites = ["9773", "9851", "10245", "10290", "10404", "33928", "34476", "35020", "36278", "37679", "120525", "121246", "121466", "122379", "124266"]
+        else:
+            sites = ["9773", "33928", "120525"]
         input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/vento/USA/'
-        experiment_name = 'Wind speed'
-
-    try:
-        mode = int(input('Run the 1- training or 2- test (default) dataset?\n')) - 1
-    except ValueError:
-        mode = TEST    
+        experiment_name = 'Wind speed'  
 
     if dataset == TEMPERATURE or dataset == WIND:
         try:
