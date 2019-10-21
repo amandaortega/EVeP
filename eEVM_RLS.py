@@ -93,7 +93,6 @@ class eEVM_RLS(object):
             self.fit(index, X_ext, y_ext)
 
         self.last_update[index] = np.max(self.step[index])
-        self.theta[index] = np.linalg.lstsq(np.insert(self.X[index], 0, 1, axis=1), self.y[index])[0]    
 
     def delete_from_list(self, list_, indexes):
         for i in sorted(indexes, reverse=True):

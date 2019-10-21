@@ -111,9 +111,9 @@ def read_parameters():
     if len(sigma) == 0:
         sigma = [0.5]
 
-    tau = list(map(int, input('Enter the tau (default value = 300): ').split()))
+    tau = list(map(int, input('Enter the tau (default value = 99999): ').split()))
     if len(tau) == 0:
-        tau = [300]
+        tau = [99999]
 
     refresh_rate = list(map(int, input('Enter the refresh_rate (default value = 50): ').split()))
     if len(refresh_rate) == 0:
