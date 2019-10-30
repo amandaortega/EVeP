@@ -225,9 +225,10 @@ class eEVM(object):
         for i in range(len(self.mr_x)):
             p = self.predict_EV(i, x)
 
-            if self.firing_degree(i, y=p) > self.sigma:
-                num = num + self.firing_degree(i, x) * p
-                den = den + self.firing_degree(i, x)
+            # if it is not an outlier prediction
+            #if self.firing_degree(i, y=p) > 0:
+            num = num + min(self.firing_degree(i, x), self.firing_degree(i, y=p)) * p
+            den = den + min(self.firing_degree(i, x), self.firing_degree(i, y=p))
 
         if den == 0:
             return np.mean(x)

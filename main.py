@@ -99,6 +99,10 @@ def read_parameters():
         input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/vento/USA/'
         experiment_name = 'Wind speed'  
 
+    experiment_name_complement = input('Add a complement for the experiment name (default = None): ')
+    if experiment_name_complement != '':
+        experiment_name = experiment_name + " - " + experiment_name_complement    
+
     if dataset == TEMPERATURE or dataset == WIND:
         try:
             dim = int(input('Enter the number of dimensions of the input (default value = 12): '))
