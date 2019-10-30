@@ -227,8 +227,8 @@ class eEVM(object):
 
             # if it is not an outlier prediction
             #if self.firing_degree(i, y=p) > 0:
-            num = num + min(self.firing_degree(i, x), self.firing_degree(i, y=p)) * p
-            den = den + min(self.firing_degree(i, x), self.firing_degree(i, y=p))
+            num = num + self.firing_degree(i, x, p) * p
+            den = den + self.firing_degree(i, x, p)
 
         if den == 0:
             return np.mean(x)
