@@ -232,9 +232,8 @@ class eEVM_RLS(object):
         for i in range(len(self.mr_x)):
             p = self.predict_EV(i, x)
 
-            if self.firing_degree(i, y=p) > self.sigma:
-                num = num + self.firing_degree(i, x) * p
-                den = den + self.firing_degree(i, x)
+            num = num + self.firing_degree(i, x, p) * p
+            den = den + self.firing_degree(i, x, p)
 
         if den == 0:
             return np.mean(x)

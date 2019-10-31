@@ -225,8 +225,6 @@ class eEVM(object):
         for i in range(len(self.mr_x)):
             p = self.predict_EV(i, x)
 
-            # if it is not an outlier prediction
-            #if self.firing_degree(i, y=p) > 0:
             num = num + self.firing_degree(i, x, p) * p
             den = den + self.firing_degree(i, x, p)
 
