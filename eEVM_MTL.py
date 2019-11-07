@@ -49,6 +49,7 @@ class eEVM_MTL(object):
         self.cluster = list()
         self.R = None
         self.theta_matlab = None
+        self.c = 0
 
     # Initialization of a new instance of EV.
     def add_EV(self, x0, y0, step, cluster, X=None, y=None, step_samples=None, X_ext=None, y_ext=None, update_theta=True):
@@ -65,13 +66,15 @@ class eEVM_MTL(object):
         self.init_theta = 2
 
         if X_ext is not None:
-            self.fit(len(self.cluster) - 1, X_ext, y_ext)
+            self.fit(self.c, X_ext, y_ext)
 
         if X is not None:
-            self.add_sample_to_EV(len(self.x0) - 1, X, y, step_samples, update_theta)
+            self.add_sample_to_EV(self.c, X, y, step_samples, update_theta)
         else:
             # coefficients of the consequent part        
             self.theta[-1] = np.insert(self.theta[-1], 0, y0, axis=1)
+        
+        self.c = self.c + 1
 
     # Add the sample(s) (X, y) as covered by the extreme vector. Remove repeated points.
     def add_sample_to_EV(self, index, X, y, step, update_theta=True):
@@ -136,7 +139,7 @@ class eEVM_MTL(object):
             X = np.concatenate(self.X)
             y = np.concatenate(self.y)
         else:
-            if self.get_number_of_EVs() > 1:
+            if self.c > 1:
                 X = np.concatenate(self.X[:index] + self.X[index + 1 :])
                 y = np.concatenate(self.y[:index] + self.y[index + 1 :])
             else:
@@ -151,11 +154,11 @@ class eEVM_MTL(object):
 
     # Return the number of clusters existing in the model
     def get_number_of_clusters(self):        
-        return len(np.unique(self.cluster))
+        return len(np.unique(np.array(self.cluster)))
 
     # Return the total number of EVs existing in the model
     def get_number_of_EVs(self):
-        return len(self.mr_x)                
+        return self.c
 
     def get_step(self, cluster):
         return np.concatenate(list(np.array(self.step)[np.where(np.array(self.cluster) == cluster)]))
@@ -172,8 +175,8 @@ class eEVM_MTL(object):
         index = 0
         update_R = False
 
-        while index < len(self.mr_x):
-            if index + 1 < len(self.mr_x):
+        while index < self.c:
+            if index + 1 < self.c:
                 x0 = np.concatenate(self.x0[index + 1 : ])
                 y0 = np.concatenate(self.y0[index + 1 : ])
 
@@ -201,11 +204,11 @@ class eEVM_MTL(object):
         z_bottom = -0.3
         ax.set_zticklabels("")        
 
-        colors = cm.get_cmap('tab20', len(np.unique(np.array(self.cluster))))
+        colors = cm.get_cmap('tab20', self.get_number_of_clusters())
         dic = dict()
         count = 0
 
-        for i in range(self.get_number_of_EVs()):
+        for i in range(self.c):
             if self.cluster[i] not in dic:                
                 dic[self.cluster[i]] = count
                 count = count + 1
@@ -242,13 +245,13 @@ class eEVM_MTL(object):
     # Predict the output given the input sample x
     def predict(self, x):
         # Checking for system prior knowledge
-        if len(self.mr_x) == 0:
+        if self.c == 0:
             return np.mean(x)
 
         num = 0
         den = 0
 
-        for i in range(len(self.mr_x)):
+        for i in range(self.c):
             p = self.predict_EV(i, x)
 
             num = num + self.firing_degree(i, x, p) * p
@@ -279,12 +282,13 @@ class eEVM_MTL(object):
         self.last_update = self.delete_from_list(self.last_update, index)
         self.cluster = self.delete_from_list(self.cluster, index)
         self.theta = self.delete_from_list(self.theta, index)
+        self.c = len(self.mr_x)
 
     # Remove the EVs that didn't have any update in the last threshold steps
     def remove_outdated_EVs(self, threshold):
         indexes_to_remove = list()
 
-        for index in range(len(self.last_update)):
+        for index in range(self.c):
             if self.last_update[index] <= threshold:
                 indexes_to_remove.append(index)
 
@@ -310,7 +314,7 @@ class eEVM_MTL(object):
     # Evolves the model (main method)
     def train(self, x, y, step):
         # empty antecedents
-        if len(self.mr_x) == 0:
+        if self.c == 0:
             self.add_EV(x, y, step, 0)
             self.last_cluster_id = 0
         else:
@@ -321,7 +325,7 @@ class eEVM_MTL(object):
             best_EV_y_value = 0
 
             # check if it is possible to insert the sample in an existing model
-            for index in range(len(self.mr_x)):
+            for index in range(self.c):
                 tau = self.firing_degree(index, x, y)
 
                 if tau > best_EV_value and tau > self.sigma:
@@ -343,7 +347,7 @@ class eEVM_MTL(object):
             elif cluster is None:
                 self.last_cluster_id = self.last_cluster_id + 1
                 cluster = self.last_cluster_id      
-                index = self.get_number_of_EVs()
+                index = self.c
 
             # Create a new EV in the respective cluster
             if best_EV is None:
@@ -359,7 +363,7 @@ class eEVM_MTL(object):
 
     # Update the psi curve of the EVs that do not belong to the model_selected
     def update_EVs(self, index):
-        for i in range(len(self.mr_x)):
+        for i in range(self.c):
             if i != index:
                 (X_ext, y_ext) = self.get_external_samples(i)
 
@@ -374,7 +378,7 @@ class eEVM_MTL(object):
         for cluster in index_sets:
             for i in range(cluster.size):
                 for j in range(i + 1, cluster.size):
-                    edge = np.zeros((len(self.cluster), 1))
+                    edge = np.zeros((self.c, 1))
                     edge[cluster[i][0]] = 1
                     edge[cluster[j][0]] = -1
 
@@ -384,8 +388,8 @@ class eEVM_MTL(object):
                         self.R = np.concatenate((self.R, edge), axis=1)
 
     def update_theta(self):
-        X = [matlab.double(np.insert(self.X[i], 0, 1, axis=1).tolist()) for i in range(len(self.X))]
-        y = [matlab.double(self.y[i].tolist()) for i in range(len(self.y))]
+        X = [matlab.double(np.insert(self.X[i], 0, 1, axis=1).tolist()) for i in range(self.c)]
+        y = [matlab.double(self.y[i].tolist()) for i in range(self.c)]
         
         if self.R is None:
             R = 0
