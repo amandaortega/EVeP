@@ -141,10 +141,6 @@ class eEVM_RLS(object):
     def get_number_of_clusters(self):        
         return len(np.unique(np.array(self.cluster)))
 
-    # Return the total number of EVs existing in the model
-    def get_number_of_EVs(self):
-        return self.c
-
     def get_step(self, cluster):
         return np.concatenate(list(np.array(self.step)[np.where(np.array(self.cluster) == cluster)]))
 

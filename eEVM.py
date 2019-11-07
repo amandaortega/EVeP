@@ -134,10 +134,6 @@ class eEVM(object):
     def get_number_of_clusters(self):        
         return len(np.unique(np.array(self.cluster)))
 
-    # Return the number of EVs
-    def get_number_of_EVs(self):        
-        return self.c
-
     def get_step(self, cluster):
         return np.concatenate(list(np.array(self.step)[np.where(np.array(self.cluster) == cluster)]))
 

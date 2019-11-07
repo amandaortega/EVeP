@@ -48,6 +48,7 @@ class eEVM_MTL(object):
         self.theta = list()
         self.cluster = list()
         self.R = None
+        self.connection_rate = None
         self.theta_matlab = None
         self.c = 0
 
@@ -145,10 +146,6 @@ class eEVM_MTL(object):
     # Return the number of clusters existing in the model
     def get_number_of_clusters(self):        
         return len(np.unique(np.array(self.cluster)))
-
-    # Return the total number of EVs existing in the model
-    def get_number_of_EVs(self):
-        return self.c
 
     def get_step(self, cluster):
         return np.concatenate(list(np.array(self.step)[np.where(np.array(self.cluster) == cluster)]))
@@ -374,6 +371,11 @@ class eEVM_MTL(object):
                         self.R = edge
                     else:
                         self.R = np.concatenate((self.R, edge), axis=1)
+        
+        if self.R is None:
+            self.connection_rate = 0
+        else:
+            self.connection_rate = self.R.shape[1] / np.sum(range(self.c))
 
     def update_theta(self):
         X = [matlab.double(np.insert(self.X[i], 0, 1, axis=1).tolist()) for i in range(self.c)]
