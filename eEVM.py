@@ -44,7 +44,7 @@ class eEVM(object):
         self.c = 0
 
     # Initialization of a new instance of EV.
-    def add_EV(self, x0, y0, step, cluster, X=None, y=None, step_samples=None, X_ext=None, y_ext=None):
+    def add_EV(self, x0, y0, step, cluster):
         self.mr_x.append(libmr.MR())
         self.mr_y.append(libmr.MR())
         self.x0.append(x0)
@@ -55,17 +55,10 @@ class eEVM(object):
         self.last_update.append(np.max(step))
         self.cluster.append(cluster)
         self.theta.append(np.zeros_like(x0))
-
-        if X_ext is not None:
-            self.fit(self.c, X_ext, y_ext)
-
-        if X is not None:
-            self.add_sample_to_EV(self.c, X, y, step_samples)
-        else:
-            # coefficients of the consequent part        
-            self.theta[-1] = np.insert(self.theta[-1], 0, y0, axis=1).T
-        
         self.c = self.c + 1
+
+        # coefficients of the consequent part        
+        self.theta[-1] = np.insert(self.theta[-1], 0, y0, axis=1).T
 
     # Add the sample(s) (X, y) as covered by the extreme vector. Remove repeated points.
     def add_sample_to_EV(self, index, X, y, step):
@@ -82,10 +75,6 @@ class eEVM(object):
         
         self.x0[index] = np.average(self.X[index], axis=0).reshape(1, -1)
         self.y0[index] = np.average(self.y[index], axis=0).reshape(1, -1)
-
-        (X_ext, y_ext) = self.get_external_samples(index)
-        if X_ext.size > 0:
-            self.fit(index, X_ext, y_ext)
 
         self.last_update[index] = np.max(self.step[index])
         self.theta[index] = np.linalg.lstsq(np.insert(self.X[index], 0, 1, axis=1), self.y[index])[0]    
@@ -329,8 +318,7 @@ class eEVM(object):
 
             # Create a new EV in the respective cluster
             if best_EV is None:
-                (X_ext, y_ext) = self.get_external_samples()                
-                self.add_EV(x, y, step, cluster, X_ext=X_ext, y_ext=y_ext)
+                self.add_EV(x, y, step, cluster)
             
             self.update_EVs(index)
 
@@ -341,8 +329,7 @@ class eEVM(object):
     # Update the psi curve of the EVs that do not belong to the model_selected
     def update_EVs(self, index):
         for i in range(self.c):
-            if i != index:
-                (X_ext, y_ext) = self.get_external_samples(i)
+            (X_ext, y_ext) = self.get_external_samples(i)
 
-                if X_ext.shape[0] > 0:
-                    self.fit(i, X_ext, y_ext)
+            if X_ext.shape[0] > 0:
+                self.fit(i, X_ext, y_ext)
