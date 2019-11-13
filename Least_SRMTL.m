@@ -54,11 +54,12 @@
 %% Code starts here
 function [W, funcVal] = Least_SRMTL(X, Y, R, rho1, rho2, rho_L2, init, W0)
 
+rho1 = double(rho1);
+rho2 = double(rho2);
+rho_L2 = double(rho_L2);
+
 if nargin <5
     error('\n Inputs: X, Y, R, rho1, and rho2 should be specified!\n');
-end
-for i = 1:length(X)
-    X{i} = X{i}';
 end
 
 opts.rho_L2 = rho_L2;
@@ -66,6 +67,10 @@ opts.init = init;
 
 if nargin == 8
     opts.W0 = W0;
+end
+
+for i = 1:length(X)
+    X{i} = double(X{i}');
 end
 
 % initialize options.

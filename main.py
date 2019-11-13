@@ -57,6 +57,26 @@ def plot_graph(y, y_label, x_label, file_name, y_aux=None, legend=None, legend_a
     plt.savefig(file_name)
     plt.close()
 
+def plot_graph_2_scales(y, y_label, x_label, file_name, y_aux, y_aux_label):
+    fig, ax1 = plt.subplots()
+
+    color = 'tab:orange'
+    ax1.set_xlabel(x_label)
+    ax1.set_ylabel(y_label, color=color)
+    ax1.plot(y, color=color)
+    ax1.tick_params(axis='y', labelcolor=color)
+
+    ax2 = ax1.twinx()  # instantiate a second axes that shares the same x-axis
+
+    color = 'tab:blue'
+    ax2.set_ylabel(y_aux_label, color=color)  # we already handled the x-label with ax1
+    ax2.plot(y_aux, color=color)
+    ax2.tick_params(axis='y', labelcolor=color)
+
+    fig.tight_layout()  # otherwise the right y-label is slightly clipped
+    plt.savefig(file_name)
+    plt.close()
+
 def read_parameters():
     try:
         algorithm = int(input('Enter the version of eEVM to run:\n1- Batch\n2- RLS\n3- RLS_mod\n4- MTL (default)\n')) - 1
@@ -95,7 +115,7 @@ def read_parameters():
         if mode == TEST:
             sites = ["9773", "9851", "10245", "10290", "10404", "33928", "34476", "35020", "36278", "37679", "120525", "121246", "121466", "122379", "124266"]
         else:
-            sites = ["9773", "33928", "120525"]
+            sites = ["9773"]#, "33928", "120525"]
         input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/vento/USA/'
         experiment_name = 'Wind speed'  
 
@@ -139,10 +159,15 @@ def read_parameters():
         rho_3 = list(map(float, input('Enter the rho_3 (default value = 0): ').split()))
         if len(rho_3) == 0:
             rho_3 = [0]
+
+        thr_sigma = list(map(float, input('Enter the thr_sigma (default value = 0.1): ').split()))
+        if len(thr_sigma) == 0:
+            thr_sigma = [0.1]
     else:
         rho_1 = None
         rho_2 = None
         rho_3 = None
+        thr_sigma = None
 
     register_experiment = input('Register the experiment? (default value = true): ')
 
@@ -165,15 +190,15 @@ def read_parameters():
     else:
         plot_frequency = -1
     
-    return [algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, plot_frequency]
+    return [algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, thr_sigma, register_experiment, plot_frequency]
 
-def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, plot_frequency):
+def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, thr_sigma, register_experiment, plot_frequency):
     mlflow.set_experiment(experiment_name)
 
     if rho_1 is None:
         print("eEVM_" + VERSION_NAME[algorithm] + " - " + experiment_name + ": sigma = " + str(sigma) + ", tau = " + str(tau) + ", refresh_rate = " + str(refresh_rate) + ", window_size = " + str(window_size))
     else:
-        print("eEVM_" + VERSION_NAME[algorithm] + " - " + experiment_name + ": sigma = " + str(sigma) + ", tau = " + str(tau) + ", refresh_rate = " + str(refresh_rate) + ", window_size = " + str(window_size) + ", rho_1 = " + str(rho_1) + ", rho_2 = " + str(rho_2) + ", rho_3 = " + str(rho_3))
+        print("eEVM_" + VERSION_NAME[algorithm] + " - " + experiment_name + ": sigma = " + str(sigma) + ", tau = " + str(tau) + ", refresh_rate = " + str(refresh_rate) + ", window_size = " + str(window_size) + ", rho_1 = " + str(rho_1) + ", rho_2 = " + str(rho_2) + ", rho_3 = " + str(rho_3) + ", thr_sigma = " + str(thr_sigma))
 
     for site in sites:
         print('Site ' + site)    
@@ -233,6 +258,7 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
                 mlflow.log_param("rho_1", rho_1)
                 mlflow.log_param("rho_2", rho_2)
                 mlflow.log_param("rho_3", rho_3)
+                mlflow.log_param("thr_sigma", thr_sigma)
 
         if algorithm == BATCH:
             model = eEVM(sigma, tau, refresh_rate, window_size)
@@ -241,12 +267,15 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
         elif algorithm == RLS_MOD:
             model = eEVM_RLS_mod(sigma, tau, refresh_rate, window_size)        
         elif algorithm == MTL:
-            model = eEVM_MTL(sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3)                    
+            model = eEVM_MTL(sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, thr_sigma)
 
         predictions = np.zeros((y.shape[0], 1))
         number_of_clusters = np.zeros((y.shape[0], 1))
-        number_of_EVs = np.zeros((y.shape[0], 1))
+        number_of_EVs = np.zeros((y.shape[0], 1))        
         RMSE = np.zeros((y.shape[0], 1))
+
+        if algorithm == MTL:
+            connection_rate = np.zeros((y.shape[0], 1))
 
         for i in tqdm(range(y.shape[0])):
             predictions[i, 0] = model.predict(X[i, :].reshape(1, -1))
@@ -254,7 +283,10 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
 
             # Saving statistics for the step i
             number_of_clusters[i, 0] = model.get_number_of_clusters()
-            number_of_EVs[i, 0] = model.get_number_of_EVs()
+            number_of_EVs[i, 0] = model.c
+
+            if algorithm == MTL:
+                connection_rate[i, 0] = model.connection_rate
             
             if i == 0:
                 RMSE[i, 0] = sqrt(mean_squared_error(y[:i+1], predictions[:i+1]))
@@ -264,7 +296,7 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
 
             if plot_frequency != -1: 
                 if len(plot_frequency) == 1:
-                    if (i % plot_frequency) == 0:
+                    if (i % plot_frequency[0]) == 0:
                         model.plot(artifact_uri + str(i) + '.png')
                 elif i in plot_frequency:
                     model.plot(artifact_uri + str(i) + '.png')
@@ -272,7 +304,7 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
         if register_experiment:
             np.savetxt(artifact_uri + 'predictions.csv', predictions)
             np.savetxt(artifact_uri + 'clusters.csv', number_of_clusters)
-            np.savetxt(artifact_uri + 'EVs.csv', number_of_EVs)
+            np.savetxt(artifact_uri + 'EVs.csv', number_of_EVs)            
 
             plot_graph(number_of_clusters, 'Quantity', 'Step', artifact_uri + 'rules.png', number_of_EVs, "Number of clusters", 'Number of EVs')
             plot_graph(RMSE, 'RMSE', 'Step', artifact_uri + 'RMSE.png')
@@ -291,12 +323,15 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
             else:
                 # x0, y0, shape_x, scale_x, shape_y, scale_y, theta, hr, sigma, tau, window, rho_1, rho_2, rho_3
                 mlflow.log_metric('Last_No_parameters', number_of_EVs[-1, 0] * (6 + dim + 1) + 7)
-                mlflow.log_metric('Mean_parameters', np.mean(number_of_EVs) * (6 + dim + 1) + 7)                
+                mlflow.log_metric('Mean_parameters', np.mean(number_of_EVs) * (6 + dim + 1) + 7)    
+
+                np.savetxt(artifact_uri + 'connection_rate.csv', connection_rate)
+                plot_graph_2_scales(number_of_EVs, 'Number of EVs', 'Step', artifact_uri + 'connection_rate.png', connection_rate, 'Connection Rate')
 
             mlflow.end_run()        
 
 if __name__ == "__main__":
-    [algorithm, dataset, mode, site, input_path, experiment_name, dim, sigmas, taus, refresh_rates, window_sizes, rho_1s, rho_2s, rho_3s, register_experiment, plot_frequency] = read_parameters()
+    [algorithm, dataset, mode, site, input_path, experiment_name, dim, sigmas, taus, refresh_rates, window_sizes, rho_1s, rho_2s, rho_3s, thr_sigmas, register_experiment, plot_frequency] = read_parameters()
 
     for sigma in sigmas:
         for tau in taus:
@@ -306,6 +341,7 @@ if __name__ == "__main__":
                         for rho_1 in rho_1s:
                             for rho_2 in rho_2s:
                                 for rho_3 in rho_3s:
-                                    run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, register_experiment, plot_frequency)
+                                    for thr_sigma in thr_sigmas:
+                                        run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, thr_sigma, register_experiment, plot_frequency)
                     else:
-                        run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1s, rho_2s, rho_3s, register_experiment, plot_frequency)
+                        run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1s, rho_2s, rho_3s, thr_sigma, register_experiment, plot_frequency)

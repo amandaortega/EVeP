@@ -24,7 +24,7 @@ class eEVM_MTL(object):
     """
 
     # Model initialization
-    def __init__(self, sigma=0.5, tau=75, refresh_rate=50, window_size=np.Inf, rho_1=1, rho_2=0, rho_3=0):        
+    def __init__(self, sigma=0.5, tau=75, refresh_rate=50, window_size=np.Inf, rho_1=1, rho_2=0, rho_3=0, thr_sigma=0.1):        
         # Setting EVM algorithm parameters
         self.sigma = sigma
         self.tau = tau
@@ -34,6 +34,7 @@ class eEVM_MTL(object):
         self.rho_1 = rho_1
         self.rho_2 = rho_2
         self.rho_3 = rho_3
+        self.thr_sigma = thr_sigma
         self.init_theta = 2
         self.eng = matlab.engine.start_matlab()
 
@@ -340,14 +341,14 @@ class eEVM_MTL(object):
             if best_EV is None:
                 self.add_EV(x, y, step, cluster)
             
-            self.update_R()
-            self.update_EVs(index)                                
+            self.update_EVs(index)
+            self.update_R()            
 
         if step != 0 and (step % self.refresh_rate) == 0:      
             self.remove_outdated_EVs(step[0, 0] - self.refresh_rate)
             self.merge()
 
-    # Update the psi curve of the EVs that do not belong to the model_selected
+    # Update the psi curve of the EVs
     def update_EVs(self, index):
         for i in range(self.c):
             (X_ext, y_ext) = self.get_external_samples(i)
@@ -356,21 +357,43 @@ class eEVM_MTL(object):
                 self.fit(i, X_ext, y_ext)
     
     def update_R(self):
-        # select just the indexes of the EVs which belong to the same cluster
-        index_sets = [np.argwhere(i==self.cluster) for i in np.unique(self.cluster) if np.argwhere(i==self.cluster).size > 1]
-        self.R = None
+        if self.thr_sigma != -1:
+            S = np.zeros((self.c, self.c))
 
-        for cluster in index_sets:
-            for i in range(cluster.size):
-                for j in range(i + 1, cluster.size):
-                    edge = np.zeros((self.c, 1))
-                    edge[cluster[i][0]] = 1
-                    edge[cluster[j][0]] = -1
+            for i in range(self.c):
+                S[i, :] = self.firing_degree(i, np.concatenate(self.x0), np.concatenate(self.y0))
+            
+            S = np.maximum(S, S.T)
+            S = S > self.thr_sigma
 
-                    if self.R is None:
-                        self.R = edge
-                    else:
-                        self.R = np.concatenate((self.R, edge), axis=1)
+            self.R = None
+            for i in range(self.c):
+                for j in range(i + 1, self.c):
+                    if S[i, j] != 0:
+                        edge = np.zeros((self.c, 1))
+                        edge[i] = 1
+                        edge[j] = -1
+
+                        if self.R is None:
+                            self.R = edge
+                        else:
+                            self.R = np.concatenate((self.R, edge), axis=1)
+        else:
+            # select just the indexes of the EVs which belong to the same cluster
+            index_sets = [np.argwhere(i==self.cluster) for i in np.unique(self.cluster) if np.argwhere(i==self.cluster).size > 1]
+            self.R = None
+
+            for cluster in index_sets:
+                for i in range(cluster.size):
+                    for j in range(i + 1, cluster.size):
+                        edge = np.zeros((self.c, 1))
+                        edge[cluster[i][0]] = 1
+                        edge[cluster[j][0]] = -1
+
+                        if self.R is None:
+                            self.R = edge
+                        else:
+                            self.R = np.concatenate((self.R, edge), axis=1)
         
         if self.R is None:
             self.connection_rate = 0
@@ -387,9 +410,9 @@ class eEVM_MTL(object):
             R = matlab.double(self.R.tolist())
         
         if self.init_theta == 1 and self.theta_matlab is not None:
-            self.theta_matlab = self.eng.Least_SRMTL(X, y,R , self.rho_1, self.rho_2, self.rho_3, self.init_theta, self.theta_matlab)
+            self.theta_matlab = self.eng.Least_SRMTL(X, y, R , self.rho_1, self.rho_2, self.rho_3, self.init_theta, self.theta_matlab)
         else:
-            self.theta_matlab = self.eng.Least_SRMTL(X, y,R , self.rho_1, self.rho_2, self.rho_3, self.init_theta)
+            self.theta_matlab = self.eng.Least_SRMTL(X, y, R , self.rho_1, self.rho_2, self.rho_3, self.init_theta)
 
         self.theta = list(np.array(self.theta_matlab).T)
         self.theta = [w.reshape(1, -1) for w in self.theta]
