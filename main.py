@@ -115,7 +115,7 @@ def read_parameters():
         if mode == TEST:
             sites = ["9773", "9851", "10245", "10290", "10404", "33928", "34476", "35020", "36278", "37679", "120525", "121246", "121466", "122379", "124266"]
         else:
-            sites = ["9773"]#, "33928", "120525"]
+            sites = ["9773", "33928", "120525"]
         input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/vento/USA/'
         experiment_name = 'Wind speed'  
 
@@ -344,4 +344,4 @@ if __name__ == "__main__":
                                     for thr_sigma in thr_sigmas:
                                         run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, thr_sigma, register_experiment, plot_frequency)
                     else:
-                        run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1s, rho_2s, rho_3s, thr_sigma, register_experiment, plot_frequency)
+                        run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, tau, refresh_rate, window_size, rho_1s, rho_2s, rho_3s, thr_sigmas, register_experiment, plot_frequency)
