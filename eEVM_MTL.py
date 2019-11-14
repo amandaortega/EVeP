@@ -4,8 +4,8 @@
     Python version: 3.6
 """
 
+from Least_SRMTL import Least_SRMTL
 import libmr
-import matlab.engine
 from matplotlib import pyplot, cm
 from matplotlib.patches import Circle
 from mpl_toolkits.mplot3d import Axes3D, art3d
@@ -36,7 +36,7 @@ class eEVM_MTL(object):
         self.rho_3 = rho_3
         self.thr_sigma = thr_sigma
         self.init_theta = 2
-        self.eng = matlab.engine.start_matlab()
+        self.srmtl = Least_SRMTL(rho_1, rho_3, rho_3)
 
         self.mr_x = list()
         self.mr_y = list()
@@ -401,19 +401,5 @@ class eEVM_MTL(object):
             self.connection_rate = self.R.shape[1] / np.sum(range(self.c))
 
     def update_theta(self):
-        X = [matlab.double(np.insert(self.X[i], 0, 1, axis=1).tolist()) for i in range(self.c)]
-        y = [matlab.double(self.y[i].tolist()) for i in range(self.c)]
-        
-        if self.R is None:
-            R = 0
-        else:
-            R = matlab.double(self.R.tolist())
-        
-        if self.init_theta == 1 and self.theta_matlab is not None:
-            self.theta_matlab = self.eng.Least_SRMTL(X, y, R , self.rho_1, self.rho_2, self.rho_3, self.init_theta, self.theta_matlab)
-        else:
-            self.theta_matlab = self.eng.Least_SRMTL(X, y, R , self.rho_1, self.rho_2, self.rho_3, self.init_theta)
-
-        self.theta = list(np.array(self.theta_matlab).T)
-        self.theta = [w.reshape(1, -1) for w in self.theta]
+        self.theta = self.srmtl.train(self.X, self.y, self.R, self.init_theta)
         self.init_theta = 1
