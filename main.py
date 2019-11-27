@@ -180,13 +180,13 @@ def read_parameters():
         plot_frequency = list(map(int, input('Enter the frequency or the intervals you want to generate the plots (default = -1 in case of no plots): ').split()))
         if len(plot_frequency) == 0:
             plot_frequency = -1
-        elif len(plot_frequency) != 1:
-            plot = list()
+        # elif len(plot_frequency) != 1:
+        #     plot = list()
 
-            for i in range(0, len(plot_frequency), 2):
-                plot = plot + list(range(plot_frequency[i], plot_frequency[i + 1]))
+        #     for i in range(0, len(plot_frequency), 2):
+        #         plot = plot + list(range(plot_frequency[i], plot_frequency[i + 1]))
             
-            plot_frequency = plot
+        #     plot_frequency = plot
     else:
         plot_frequency = -1
     
