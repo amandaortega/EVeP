@@ -48,6 +48,8 @@ class Least_SRMTL(object):
         for i in range(self.t):
             funcVal = funcVal + 0.5 * np.linalg.norm(Y[i] - X[i].T @ W[:, i].reshape(-1, 1)) ** 2
 
+        if R is None:
+            return funcVal + self.rho_3 * np.linalg.norm(W, 'fro') ** 2
         return funcVal + self.rho_1 * np.linalg.norm(W @ R, 'fro') ** 2 + self.rho_3 * np.linalg.norm(W, 'fro') ** 2
 
     def gradVal_eval(self, X, XY, RRt, W):
@@ -58,6 +60,8 @@ class Least_SRMTL(object):
             XTXWi = X[t_ii] @ XWi
             grad_W[:, t_ii] = XTXWi - XY[t_ii].reshape(-1)
 
+        if RRt is None:
+            return grad_W + self.rho_3 * 2 * W
         return grad_W + self.rho_1 * 2 *  W @ RRt + self.rho_3 * 2 * W
 
     # Calculates argmin_z = \|z-v\|_2^2 + beta \|z\|_1 
@@ -92,11 +96,11 @@ class Least_SRMTL(object):
         
         X = self.multi_transpose(X)
 
-        # precomputation
-        try:
+        # precomputation        
+        if R is None:
+            RRt = None
+        else:
             RRt = R @ R.T
-        except Exception:
-            print('para')
         XY = list()
 
         for t_idx in range(self.t):
