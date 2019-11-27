@@ -39,14 +39,14 @@ class Least_SRMTL(object):
         self.rho_1 = rho_1
         self.rho_2 = rho_2
         self.rho_3 = rho_3   
-        self.funcVal = list()
+        self.funcVal = None
         self.W = None
     
     def funVal_eval(self, X, Y, W, R):
         funcVal = 0
 
         for i in range(self.t):
-            funcVal = funcVal + 0.5 * np.linalg.norm(Y[i] - X[i].T @ W[:, i]) ** 2
+            funcVal = funcVal + 0.5 * np.linalg.norm(Y[i] - X[i].T @ W[:, i].reshape(-1, 1)) ** 2
 
         return funcVal + self.rho_1 * np.linalg.norm(W @ R, 'fro') ** 2 + self.rho_3 * np.linalg.norm(W, 'fro') ** 2
 
@@ -81,6 +81,7 @@ class Least_SRMTL(object):
         return X
 
     def train(self, X, Y, R, init_theta=2):
+        self.funcVal = list()
         X = X.copy()
 
         if init_theta == 1:
@@ -128,6 +129,7 @@ class Least_SRMTL(object):
                 
                 delta_Wzp = Wzp - Ws
                 r_sum = np.linalg.norm(delta_Wzp, ord='fro') ** 2
+
                 Fzp_gamma = Fs + np.trace(delta_Wzp.T @ gWs) + gamma / 2 * np.linalg.norm(delta_Wzp, 'fro') ** 2
                 
                 if r_sum <= 1e-20:
