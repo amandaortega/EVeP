@@ -167,19 +167,11 @@ class eEVM(object):
         fig = pyplot.figure()
         ax = fig.add_subplot(111, projection='3d')
         z_bottom = -0.3
-        ax.set_zticklabels("")        
+        ax.set_zticklabels("")     
 
-        #colors = cm.get_cmap('tab20', self.get_number_of_clusters())
         colors = cm.get_cmap('Dark2', self.c)
-        # dic = dict()
-        # count = 0
 
         for i in range(self.c):
-            # if self.cluster[i] not in dic:                
-            #     dic[self.cluster[i]] = count
-            #     count = count + 1
-            
-            #self.plot_EV(i, ax, '.', colors(dic[self.cluster[i]]), z_bottom)
             self.plot_EV(i, ax, '.', colors(i), z_bottom)
         
         # Save figure
@@ -191,13 +183,13 @@ class eEVM(object):
     # Plot the probability of sample inclusion (psi-model) together with the samples associated with the EV
     def plot_EV(self, index, ax, marker, color, z_bottom):
         # Plot the input samples in the XY plan
-        ax.scatter(self.X[index][:, 0], self.X[index][:, 1], z_bottom * np.ones((self.X[index].shape[0], 1)), marker=marker, color=color)
+        #ax.scatter(self.X[index][:, 0], self.X[index][:, 1], z_bottom * np.ones((self.X[index].shape[0], 1)), marker=marker, color=color)
 
         # Plot the radius for which there is a probability sigma to belong to the EV
-        radius = self.get_distance(index, self.sigma)
-        p = Circle((self.x0[index][0, 0], self.x0[index][0, 1]), radius, fill=False, color=color)
-        ax.add_patch(p)
-        art3d.pathpatch_2d_to_3d(p, z=z_bottom, zdir="z")
+        #radius = self.get_distance(index, self.sigma)
+        #p = Circle((self.x0[index][0, 0], self.x0[index][0, 1]), radius, fill=False, color=color)
+        #ax.add_patch(p)
+        #art3d.pathpatch_2d_to_3d(p, z=z_bottom, zdir="z")
 
         # Plot the psi curve of the EV
         r = np.linspace(0, self.get_distance(index, 0.05), 100)

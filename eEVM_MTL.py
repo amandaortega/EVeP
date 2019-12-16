@@ -47,14 +47,13 @@ class eEVM_MTL(object):
         self.step = list()
         self.last_update = list()
         self.theta = list()
-        self.cluster = list()
         self.R = None
         self.connection_rate = None
         self.theta_matlab = None
         self.c = 0
 
     # Initialization of a new instance of EV.
-    def add_EV(self, x0, y0, step, cluster):
+    def add_EV(self, x0, y0, step):
         self.mr_x.append(libmr.MR())
         self.mr_y.append(libmr.MR())
         self.x0.append(x0)
@@ -63,7 +62,6 @@ class eEVM_MTL(object):
         self.y.append(y0)
         self.step.append(step)
         self.last_update.append(np.max(step))
-        self.cluster.append(cluster)
         self.theta.append(np.zeros_like(x0))
         self.init_theta = 2
 
@@ -125,7 +123,7 @@ class eEVM_MTL(object):
     def get_distance(self, index, percentage):
         return self.mr_x[index].inv(percentage)
 
-    # Obtain the samples that not belong to the cluster given by parameter but are part of the other clusters of the system
+    # Obtain the samples that not belong to the given EV
     def get_external_samples(self, index=None):
         if index is None:
             X = np.concatenate(self.X)
@@ -139,23 +137,6 @@ class eEVM_MTL(object):
                 y = np.array([])                
 
         return (X, y)
-
-    def get_internal_samples(self, cluster):
-        indexes = np.where(np.array(self.cluster) == cluster)
-        return (np.concatenate(list(np.array(self.X)[indexes])), np.concatenate(list(np.array(self.y)[indexes])), np.concatenate(list(np.array(self.step)[indexes])))
-
-    # Return the number of clusters existing in the model
-    def get_number_of_clusters(self):        
-        return len(np.unique(np.array(self.cluster)))
-
-    def get_step(self, cluster):
-        return np.concatenate(list(np.array(self.step)[np.where(np.array(self.cluster) == cluster)]))
-
-    def get_X(self, cluster):
-        return np.concatenate(list(np.array(self.X)[np.where(np.array(self.cluster) == cluster)]))
-
-    def get_y(self, cluster):
-        return np.concatenate(list(np.array(self.y)[np.where(np.array(self.cluster) == cluster)]))
 
     # Merge two EVs of different clusters whenever the origin of one is inside the sigma probability of inclusion of the psi curve of the other
     def merge(self):
@@ -192,16 +173,10 @@ class eEVM_MTL(object):
         z_bottom = -0.3
         ax.set_zticklabels("")        
 
-        colors = cm.get_cmap('tab20', self.get_number_of_clusters())
-        dic = dict()
-        count = 0
+        colors = cm.get_cmap('Dark2', self.c)
 
-        for i in range(self.c):
-            if self.cluster[i] not in dic:                
-                dic[self.cluster[i]] = count
-                count = count + 1
-            
-            self.plot_EV(i, ax, '.', colors(dic[self.cluster[i]]), z_bottom)
+        for i in range(self.c):    
+            self.plot_EV(i, ax, '.', colors(i), z_bottom)
         
         # Save figure
         fig.savefig(name_figure)
@@ -254,10 +229,6 @@ class eEVM_MTL(object):
     def predict_EV(self, index, x):
         return np.insert(x, 0, 1).reshape(1, -1) @ self.theta[index].T
 
-    # Remove all the the EVs belonging to the cluster informed by parameter
-    def remove_cluster(self, cluster):
-        self.remove_EV(list(np.where(np.array(self.cluster) == cluster)[0]))
-
     # Remove the EV whose index was informed by parameter
     def remove_EV(self, index):
         self.mr_x = self.delete_from_list(self.mr_x, index)
@@ -268,7 +239,6 @@ class eEVM_MTL(object):
         self.y = self.delete_from_list(self.y, index)
         self.step = self.delete_from_list(self.step, index)
         self.last_update = self.delete_from_list(self.last_update, index)
-        self.cluster = self.delete_from_list(self.cluster, index)
         self.theta = self.delete_from_list(self.theta, index)
         self.c = len(self.mr_x)
 
@@ -297,20 +267,16 @@ class eEVM_MTL(object):
         self.y = list(np.array(self.y)[new_order])
         self.step = list(np.array(self.step)[new_order])
         self.last_update = list(np.array(self.last_update)[new_order])
-        self.cluster = list(np.array(self.cluster)[new_order])
 
     # Evolves the model (main method)
     def train(self, x, y, step):
         # empty antecedents
         if self.c == 0:
-            self.add_EV(x, y, step, 0)
+            self.add_EV(x, y, step)
             self.last_cluster_id = 0
         else:
             best_EV = None
-            best_EV_value = 0
-            
-            cluster = None
-            best_EV_y_value = 0
+            best_EV_value = 0            
 
             # check if it is possible to insert the sample in an existing model
             for index in range(self.c):
@@ -319,27 +285,14 @@ class eEVM_MTL(object):
                 if tau > best_EV_value and tau > self.sigma:
                     best_EV = index
                     best_EV_value = tau
-                else:
-                    tau = self.firing_degree(index, y=y)
-
-                    if tau > best_EV_y_value and tau > self.sigma:
-                        cluster = self.cluster[index]
-                        best_EV_y_value = tau            
             
             # Add the sample to an existing EV
             if best_EV is not None:
                 self.add_sample_to_EV(best_EV, x, y, step)
-                cluster = self.cluster[best_EV]
                 index = best_EV
-            # Create a new cluster
-            elif cluster is None:
-                self.last_cluster_id = self.last_cluster_id + 1
-                cluster = self.last_cluster_id      
-                index = self.c
-
-            # Create a new EV in the respective cluster
-            if best_EV is None:
-                self.add_EV(x, y, step, cluster)
+            # Create a new EV
+            else:
+                self.add_EV(x, y, step)
             
             self.update_EVs(index)
             self.update_R()            
@@ -356,44 +309,33 @@ class eEVM_MTL(object):
             if X_ext.shape[0] > 0:
                 self.fit(i, X_ext, y_ext)
     
-    def update_R(self):
-        if self.thr_sigma != -1:
-            S = np.zeros((self.c, self.c))
+    def update_R(self):        
+        S = np.zeros((self.c, self.c))
 
-            for i in range(self.c):
-                S[i, :] = self.firing_degree(i, np.concatenate(self.x0), np.concatenate(self.y0))
-            
+        for i in range(self.c):
+            S[i, :] = self.firing_degree(i, np.concatenate(self.x0), np.concatenate(self.y0))
+        
+        if self.thr_sigma != -1:
             S = np.maximum(S, S.T)
             S = S > self.thr_sigma
 
-            self.R = None
-            for i in range(self.c):
-                for j in range(i + 1, self.c):
-                    if S[i, j] != 0:
-                        edge = np.zeros((self.c, 1))
+        self.R = None
+        for i in range(self.c):
+            for j in range(i + 1, self.c):
+                if S[i, j] > 0:
+                    edge = np.zeros((self.c, 1))
+
+                    if self.thr_sigma == -1:
+                        edge[i] = S[i, j]
+                        edge[j] = - S[j, i]
+                    else:
                         edge[i] = 1
                         edge[j] = -1
 
-                        if self.R is None:
-                            self.R = edge
-                        else:
-                            self.R = np.concatenate((self.R, edge), axis=1)
-        else:
-            # select just the indexes of the EVs which belong to the same cluster
-            index_sets = [np.argwhere(i==self.cluster) for i in np.unique(self.cluster) if np.argwhere(i==self.cluster).size > 1]
-            self.R = None
-
-            for cluster in index_sets:
-                for i in range(cluster.size):
-                    for j in range(i + 1, cluster.size):
-                        edge = np.zeros((self.c, 1))
-                        edge[cluster[i][0]] = 1
-                        edge[cluster[j][0]] = -1
-
-                        if self.R is None:
-                            self.R = edge
-                        else:
-                            self.R = np.concatenate((self.R, edge), axis=1)
+                    if self.R is None:
+                        self.R = edge
+                    else:
+                        self.R = np.concatenate((self.R, edge), axis=1)
         
         if self.R is None:
             self.connection_rate = 0

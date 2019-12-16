@@ -176,16 +176,10 @@ class eEVM_RLS(object):
         z_bottom = -0.3
         ax.set_zticklabels("")        
 
-        colors = cm.get_cmap('tab20', self.get_number_of_clusters())
-        dic = dict()
-        count = 0
+        colors = cm.get_cmap('Dark2', self.c)
 
         for i in range(self.c):
-            if self.cluster[i] not in dic:                
-                dic[self.cluster[i]] = count
-                count = count + 1
-            
-            self.plot_EV(i, ax, '.', colors(dic[self.cluster[i]]), z_bottom)
+            self.plot_EV(i, ax, '.', colors(i), z_bottom)
         
         # Save figure
         fig.savefig(name_figure)

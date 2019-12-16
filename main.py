@@ -270,7 +270,6 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
             model = eEVM_MTL(sigma, tau, refresh_rate, window_size, rho_1, rho_2, rho_3, thr_sigma)
 
         predictions = np.zeros((y.shape[0], 1))
-        number_of_clusters = np.zeros((y.shape[0], 1))
         number_of_EVs = np.zeros((y.shape[0], 1))        
         RMSE = np.zeros((y.shape[0], 1))
 
@@ -282,7 +281,6 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
             model.train(X[i, :].reshape(1, -1), y[i].reshape(1, -1), np.array([[i]]))
 
             # Saving statistics for the step i
-            number_of_clusters[i, 0] = model.get_number_of_clusters()
             number_of_EVs[i, 0] = model.c
 
             if algorithm == MTL:
@@ -303,16 +301,14 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
 
         if register_experiment:
             np.savetxt(artifact_uri + 'predictions.csv', predictions)
-            np.savetxt(artifact_uri + 'clusters.csv', number_of_clusters)
             np.savetxt(artifact_uri + 'EVs.csv', number_of_EVs)            
 
-            plot_graph(number_of_clusters, 'Quantity', 'Step', artifact_uri + 'rules.png', number_of_EVs, "Number of clusters", 'Number of EVs')
+            plot_graph(number_of_EVs, 'Number of rules', 'Step', artifact_uri + 'rules.png')
             plot_graph(RMSE, 'RMSE', 'Step', artifact_uri + 'RMSE.png')
             plot_graph(y, 'Prediction', 'Step', artifact_uri + 'predictions.png', predictions, "y", "p")        
 
             mlflow.log_metric('RMSE', RMSE[-1, 0])
             mlflow.log_metric('NDEI', RMSE[-1, 0] / np.std(y))            
-            mlflow.log_metric('Mean_clusters', np.mean(number_of_clusters))        
             mlflow.log_metric('Mean_EVs', np.mean(number_of_EVs))
             mlflow.log_metric('Last_No_EV', number_of_EVs[-1, 0])
 
