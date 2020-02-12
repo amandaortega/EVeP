@@ -30,7 +30,6 @@ class eEVM_MTL(object):
         self.tau = tau
         self.refresh_rate = refresh_rate
         self.window_size = window_size    
-        self.last_cluster_id = -1
         self.rho_1 = rho_1
         self.rho_2 = rho_2
         self.rho_3 = rho_3
@@ -123,7 +122,7 @@ class eEVM_MTL(object):
     def get_distance(self, index, percentage):
         return self.mr_x[index].inv(percentage)
 
-    # Obtain the samples that not belong to the given EV
+    # Obtain the samples that do not belong to the given EV
     def get_external_samples(self, index=None):
         if index is None:
             X = np.concatenate(self.X)
@@ -273,7 +272,6 @@ class eEVM_MTL(object):
         # empty antecedents
         if self.c == 0:
             self.add_EV(x, y, step)
-            self.last_cluster_id = 0
         else:
             best_EV = None
             best_EV_value = 0            

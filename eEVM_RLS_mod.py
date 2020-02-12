@@ -41,23 +41,11 @@ class eEVM_RLS_mod(object):
         self.step = list()
         self.last_update = list()
         self.theta = list()
-        self.cluster = list()
         self.P = list()
         self.c = 0
 
     # Initialization of a new instance of EV.
-    def add_EV(self, x0, y0, step, cluster):
-        number_of_EVs = self.get_number_of_EVs(cluster)
-
-        if number_of_EVs == 0:
-            self.theta.append(np.zeros_like(x0))
-            self.theta[-1] = np.insert(self.theta[-1], 0, y0, axis=1).T
-        elif number_of_EVs == 1:
-            self.theta.append(self.get_theta(cluster))
-        else:
-            lambda_ = self.get_normalized_firing_degrees(cluster, x0, y0)
-            self.theta.append(np.sum(np.matlib.repmat(lambda_, x0.shape[1] + 1, 1) * self.get_theta(cluster), 1).reshape(-1, 1))
-
+    def add_EV(self, x0, y0, step):
         self.mr_x.append(libmr.MR())
         self.mr_y.append(libmr.MR())
         self.x0.append(x0)
@@ -66,8 +54,9 @@ class eEVM_RLS_mod(object):
         self.y.append(y0)
         self.step.append(step)
         self.last_update.append(np.max(step))
-        self.cluster.append(cluster)
-        self.P.append(self.P0 * np.eye(x0.shape[1] + 1))            
+        self.theta.append(np.zeros_like(x0))
+        self.theta[-1] = np.insert(self.theta[-1], 0, y0, axis=1).T
+        self.P.append(self.P0 * np.eye(x0.shape[1] + 1))        
         self.c = self.c + 1
 
     # Add the sample(s) (X, y) as covered by the extreme vector. Remove repeated points.
@@ -127,7 +116,7 @@ class eEVM_RLS_mod(object):
     def get_distance(self, index, percentage):
         return self.mr_x[index].inv(percentage)
 
-    # Obtain the samples that not belong to the cluster given by parameter but are part of the other clusters of the system
+    # Obtain the samples that do not belong to the given EV
     def get_external_samples(self, index=None):
         if index is None:
             X = np.concatenate(self.X)
@@ -141,47 +130,6 @@ class eEVM_RLS_mod(object):
                 y = np.array([])                
 
         return (X, y)
-
-    def get_internal_samples(self, cluster):
-        indexes = np.where(np.array(self.cluster) == cluster)
-        return (np.concatenate(list(np.array(self.X)[indexes])), np.concatenate(list(np.array(self.y)[indexes])), np.concatenate(list(np.array(self.step)[indexes])))
-
-    def get_normalized_firing_degrees(self, cluster, x, y):
-        indexes = np.array(np.where(np.array(self.cluster) == cluster))
-
-        if indexes.size > 0:
-            lambda_ = np.zeros((indexes.shape[1], 1))
-
-            for index in range(indexes.shape[1]):
-                lambda_[index] = self.firing_degree(indexes[0, index], x, y)
-            
-            if np.sum(lambda_) == 0:
-                return lambda_.T
-
-            return (lambda_ / np.sum(lambda_)).T
-        return np.NaN
-
-    # Return the number of clusters existing in the model
-    def get_number_of_clusters(self):        
-        return len(np.unique(np.array(self.cluster)))
-
-    # Return the total number of EVs existing in the model
-    def get_number_of_EVs(self, cluster=None):
-        if cluster is None:
-            return self.c
-        return np.array(np.where(np.array(self.cluster) == cluster)).shape[1]
-
-    def get_step(self, cluster):
-        return np.concatenate(list(np.array(self.step)[np.where(np.array(self.cluster) == cluster)]))
-
-    def get_theta(self, cluster):
-        return np.concatenate(list(np.array(self.theta)[np.where(np.array(self.cluster) == cluster)]), axis = 1)
-
-    def get_X(self, cluster):
-        return np.concatenate(list(np.array(self.X)[np.where(np.array(self.cluster) == cluster)]))
-
-    def get_y(self, cluster):
-        return np.concatenate(list(np.array(self.y)[np.where(np.array(self.cluster) == cluster)]))
 
     # Merge two EVs of different clusters whenever the origin of one is inside the sigma probability of inclusion of the psi curve of the other
     def merge(self):
@@ -265,10 +213,6 @@ class eEVM_RLS_mod(object):
     def predict_EV(self, index, x):
         return np.insert(x, 0, 1).reshape(1, -1) @ self.theta[index]        
 
-    # Remove all the the EVs belonging to the cluster informed by parameter
-    def remove_cluster(self, cluster):
-        self.remove_EV(list(np.where(np.array(self.cluster) == cluster)[0]))
-
     # Remove the EV whose index was informed by parameter
     def remove_EV(self, index):
         self.mr_x = self.delete_from_list(self.mr_x, index)
@@ -279,7 +223,6 @@ class eEVM_RLS_mod(object):
         self.y = self.delete_from_list(self.y, index)
         self.step = self.delete_from_list(self.step, index)
         self.last_update = self.delete_from_list(self.last_update, index)
-        self.cluster = self.delete_from_list(self.cluster, index)
         self.theta = self.delete_from_list(self.theta, index)
         self.c = len(self.mr_x)
 
@@ -306,20 +249,15 @@ class eEVM_RLS_mod(object):
         self.y = list(np.array(self.y)[new_order])
         self.step = list(np.array(self.step)[new_order])
         self.last_update = list(np.array(self.last_update)[new_order])
-        self.cluster = list(np.array(self.cluster)[new_order])
 
     # Evolves the model (main method)
     def train(self, x, y, step):
         # empty antecedents
         if self.c == 0:
-            self.add_EV(x, y, step, 0)
-            self.last_cluster_id = 0
+            self.add_EV(x, y, step)
         else:
             best_EV = None
-            best_EV_value = 0
-            
-            cluster = None
-            best_EV_y_value = 0
+            best_EV_value = 0            
 
             # check if it is possible to insert the sample in an existing model
             for index in range(self.c):
@@ -328,27 +266,14 @@ class eEVM_RLS_mod(object):
                 if tau > best_EV_value and tau > self.sigma:
                     best_EV = index
                     best_EV_value = tau
-                else:
-                    tau = self.firing_degree(index, y=y)
-
-                    if tau > best_EV_y_value and tau > self.sigma:
-                        cluster = self.cluster[index]
-                        best_EV_y_value = tau            
             
             # Add the sample to an existing EV
             if best_EV is not None:
                 self.add_sample_to_EV(best_EV, x, y, step)
-                cluster = self.cluster[best_EV]
                 index = best_EV
-            # Create a new cluster
-            elif cluster is None:
-                self.last_cluster_id = self.last_cluster_id + 1
-                cluster = self.last_cluster_id      
-                index = self.c
-
-            # Create a new EV in the respective cluster
-            if best_EV is None:
-                self.add_EV(x, y, step, cluster)
+            # Create a new EV
+            else:
+                self.add_EV(x, y, step)
             
             self.update_EVs(index)
 
