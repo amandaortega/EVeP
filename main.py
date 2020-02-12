@@ -16,6 +16,7 @@ MACKEY_GLASS = 2
 SP_500 = 3
 TEMPERATURE = 4
 WIND = 5
+RAIN = 6
 
 # algorithm versions
 BATCH = 0
@@ -31,7 +32,7 @@ TEST = 1
 def read_csv(file, dataset):
     database = []
 
-    if dataset in [TEMPERATURE, PLANT_IDENTIFICATION, MACKEY_GLASS, SP_500]:
+    if dataset in [TEMPERATURE, PLANT_IDENTIFICATION, MACKEY_GLASS, SP_500, RAIN]:
         delimiter = ','
     elif dataset == WIND:
         delimiter = ' '
@@ -91,78 +92,120 @@ def read_parameters():
     try:
         dataset = int(input('Enter the dataset to be tested:\n1- Nonlinear Dynamic Plant Identification With Time-Varying Characteristics (default)\n' + 
         '2- Mackey–Glass Chaotic Time Series (Long-Term Prediction)\n3- Online Prediction of S&P 500 Daily Closing Price\n' + 
-        '4- Wheater temperature\n5- Wind speed\n'))
+        '4- Wheater temperature\n5- Wind speed\n6- Rain\n'))
     except ValueError:
         dataset = PLANT_IDENTIFICATION
+
+    dim = -1
+    tau_default = 99999
+    rho_2_default = 0
+    rho_3_default = 0
+    thr_sigma_default = -1
+    window_size_default = 4
 
     if dataset == PLANT_IDENTIFICATION:
         sites = ['Default']
         input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/Nonlinear_Dynamic_Plant_Identification_With_Time-Varying_Characteristics/'
         experiment_name = 'Nonlinear Dynamic Plant Identification With Time-Varying Characteristics'
+
+        sigma_default = 0.1
+        tau_default = 15
+        refresh_rate_default = 30        
+        rho_1_default = 0.1
     elif dataset == MACKEY_GLASS:
         sites = ['Default']
         input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/Mackey_Glass/'
         experiment_name = 'Mackey Glass'
+
+        sigma_default = 0
+        tau_default = 5
+        refresh_rate_default = 20
+        rho_1_default = 0
     elif dataset == SP_500:
         sites = ['Default']
         input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/SP_500_Daily_Closing_Price/'
         experiment_name = 'SP 500 Daily Closing Price'
+
+        sigma_default = 0.9
+        tau_default = 5
+        refresh_rate_default = 10
+        rho_1_default = 10
+        rho_2_default = 0.1
+        rho_3_default = 0.1      
     elif dataset == TEMPERATURE:
         sites = ["DeathValley", "Ottawa", "Lisbon"]
         input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/temperatura/'
         experiment_name = 'Wheater temperature'
-    else:
+
+        dim = 12
+        sigma_default = 0.5        
+        refresh_rate_default = 48
+        window_size_default = 12
+        rho_1_default = 1
+    elif dataset == WIND:
         if mode == TEST:
             sites = ["9773", "9851", "10245", "10290", "10404", "33928", "34476", "35020", "36278", "37679", "120525", "121246", "121466", "122379", "124266"]
         else:
             sites = ["9773", "33928", "120525"]
+
         input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/vento/USA/'
         experiment_name = 'Wind speed'  
+
+        dim = 2
+        sigma_default = 0.2
+        refresh_rate_default = 50
+        window_size_default = 24
+        rho_1_default = 1
+    else:
+        if mode == TRAINING:
+            sites = [str(i) for i in range(1, 82, 5)]
+        else:
+            sites = [str(i) for i in range(1, 87)]
+
+        input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/precipitacao/'
+        experiment_name = 'Rain'
+
+        dim = 2
+        sigma_default = 0.5
+        refresh_rate_default = 6
+        rho_1_default = 1000
 
     experiment_name_complement = input('Add a complement for the experiment name (default = None): ')
     if experiment_name_complement != '':
         experiment_name = experiment_name + " - " + experiment_name_complement    
 
-    if dataset == TEMPERATURE or dataset == WIND:
-        try:
-            dim = int(input('Enter the number of dimensions of the input (default value = 12): '))
-        except ValueError:
-            dim = 12
-    else:
-        dim = -1
-
-    sigma = list(map(float, input('Enter the sigma (default value = 0.5): ').split()))
+    sigma = list(map(float, input('Enter the sigma (default value = ' + str(sigma_default) + '): ').split()))
     if len(sigma) == 0:
-        sigma = [0.5]
+        sigma = [sigma_default]
 
-    tau = list(map(int, input('Enter the tau (default value = 99999): ').split()))
+    tau = list(map(int, input('Enter the tau (default value = ' + str(tau_default) + '): ').split()))
     if len(tau) == 0:
-        tau = [99999]
+        tau = [tau_default]
 
-    refresh_rate = list(map(int, input('Enter the refresh_rate (default value = 50): ').split()))
+    refresh_rate = list(map(int, input('Enter the refresh_rate (default value = ' + str(refresh_rate_default) + '): ').split()))
     if len(refresh_rate) == 0:
-        refresh_rate = [50]
+        refresh_rate = [refresh_rate_default]
 
-    window_size = list(map(int, input('Enter the size of the window (default value = 4): ').split()))
+    window_size = list(map(int, input('Enter the size of the window (default value = ' + str(window_size_default) + '): ').split()))
     if len(window_size) == 0:
-        window_size = [4]
+        window_size = [window_size_default]
     
     if algorithm == MTL:        
-        rho_1 = list(map(float, input('Enter the rho_1 (default value = 1): ').split()))
+        rho_1 = list(map(float, input('Enter the rho_1 (default value = ' + str(rho_1_default) + '): ').split()))
         if len(rho_1) == 0:
-            rho_1 = [1]
+            rho_1 = [rho_1_default]
 
-        rho_2 = list(map(float, input('Enter the rho_2 (default value = 0): ').split()))
+        rho_2 = list(map(float, input('Enter the rho_2 (default value = ' + str(rho_2_default) + '): ').split()))
         if len(rho_2) == 0:
-            rho_2 = [0]
+            rho_2 = [rho_2_default]
 
-        rho_3 = list(map(float, input('Enter the rho_3 (default value = 0): ').split()))
+        rho_3 = list(map(float, input('Enter the rho_3 (default value = ' + str(rho_3_default) + '): ').split()))
         if len(rho_3) == 0:
-            rho_3 = [0]
+            rho_3 = [rho_3_default]
 
-        thr_sigma = list(map(float, input('Enter the thr_sigma (default value = 0.1): ').split()))
+        thr_sigma = list(map(float, input('Enter the thr_sigma (default value = ' + str(thr_sigma_default) + '): ').split()))
         if len(thr_sigma) == 0:
-            thr_sigma = [0.1]
+            thr_sigma = [thr_sigma_default]
     else:
         rho_1 = None
         rho_2 = None
@@ -221,7 +264,16 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
                     path = input_path + 'bases/' + site + '/wind_speed/hour/' + site + '-2012/' + str(dim)
 
             X  = read_csv(path + '/X_real.csv', dataset)
-            y  = read_csv(path + '/Y_real.csv', dataset).reshape(-1)        
+            y  = read_csv(path + '/Y_real.csv', dataset).reshape(-1)
+        else:
+            path = input_path + 'data/s' + site
+
+            if mode == TRAINING:
+                X  = read_csv(path + '/X_train.csv', dataset)
+                y  = read_csv(path + '/Y_train.csv', dataset).reshape(-1)
+            else:
+                X  = read_csv(path + '/X_test.csv', dataset)
+                y  = read_csv(path + '/Y_test.csv', dataset).reshape(-1)                
 
         dim = X.shape[1]
 
