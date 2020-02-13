@@ -119,8 +119,18 @@ class eEVM_MTL(object):
         self.mr_y[index].fit_low(1/2 * D, min(D.shape[0], self.tau))                                                  
 
     # Get the distance from the origin of the EV which has the given probability to belong to the curve
-    def get_distance(self, index, percentage):
-        return self.mr_x[index].inv(percentage)
+    def get_distance_x(self, percentage, index=None):
+        if index is None:
+            return [self.mr_x[i].inv(percentage) for i in range(self.c)]
+        else:
+            return self.mr_x[index].inv(percentage)
+
+    # Get the distance from the origin of the EV which has the given probability to belong to the curve
+    def get_distance_y(self, percentage, index=None):
+        if index is None:
+            return [self.mr_y[i].inv(percentage) for i in range(self.c)]
+        else:
+            return self.mr_y[index].inv(percentage)        
 
     # Obtain the samples that do not belong to the given EV
     def get_external_samples(self, index=None):
@@ -189,13 +199,13 @@ class eEVM_MTL(object):
         ax.scatter(self.X[index][:, 0], self.X[index][:, 1], z_bottom * np.ones((self.X[index].shape[0], 1)), marker=marker, color=color)
 
         # Plot the radius for which there is a probability sigma to belong to the EV
-        radius = self.get_distance(index, self.sigma)
+        radius = self.get_distance_x(self.sigma, index)
         p = Circle((self.x0[index][0, 0], self.x0[index][0, 1]), radius, fill=False, color=color)
         ax.add_patch(p)
         art3d.pathpatch_2d_to_3d(p, z=z_bottom, zdir="z")
 
         # Plot the psi curve of the EV
-        r = np.linspace(0, self.get_distance(index, 0.05), 100)
+        r = np.linspace(0, self.get_distance_x(0.05, index), 100)
         theta = np.linspace(0, 2 * np.pi, 145)    
         radius_matrix, theta_matrix = np.meshgrid(r,theta)            
         X = self.x0[index][0, 0] + radius_matrix * np.cos(theta_matrix)
@@ -227,6 +237,13 @@ class eEVM_MTL(object):
     # Predict the local output of x based on the linear regression of the samples stored at the EV
     def predict_EV(self, index, x):
         return np.insert(x, 0, 1).reshape(1, -1) @ self.theta[index].T
+
+    # Calculate the degree of relationship of all the rules to the rule of index informed as parameter
+    def relationship_rules(self, index):
+        relationship_x = self.mr_x[index].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(self.x0[index], np.concatenate(self.x0)).reshape(-1) - self.get_distance_x(self.sigma))
+        relationship_y = self.mr_y[index].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(self.y0[index], np.concatenate(self.y0)).reshape(-1) - self.get_distance_y(self.sigma))
+
+        return np.maximum(relationship_x, relationship_y)
 
     # Remove the EV whose index was informed by parameter
     def remove_EV(self, index):
@@ -311,16 +328,17 @@ class eEVM_MTL(object):
         S = np.zeros((self.c, self.c))
 
         for i in range(self.c):
-            S[i, :] = self.firing_degree(i, np.concatenate(self.x0), np.concatenate(self.y0))
+            S[i, :] = self.relationship_rules(i)
         
         if self.thr_sigma != -1:
             S = np.maximum(S, S.T)
             S = S > self.thr_sigma
 
         self.R = None
+
         for i in range(self.c):
             for j in range(i + 1, self.c):
-                if S[i, j] > 0:
+                if S[i, j] > 0 or S[j, i] > 0:
                     edge = np.zeros((self.c, 1))
 
                     if self.thr_sigma == -1:
