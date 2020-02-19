@@ -240,10 +240,16 @@ class eEVM_MTL(object):
 
     # Calculate the degree of relationship of all the rules to the rule of index informed as parameter
     def relationship_rules(self, index):
-        relationship_x = self.mr_x[index].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(self.x0[index], np.concatenate(self.x0)).reshape(-1) - self.get_distance_x(self.sigma))
-        relationship_y = self.mr_y[index].w_score_vector(sklearn.metrics.pairwise.pairwise_distances(self.y0[index], np.concatenate(self.y0)).reshape(-1) - self.get_distance_y(self.sigma))
+        distance_x = sklearn.metrics.pairwise.pairwise_distances(self.x0[index], np.concatenate(self.x0)).reshape(-1)
+        distance_y = sklearn.metrics.pairwise.pairwise_distances(self.y0[index], np.concatenate(self.y0)).reshape(-1)
 
-        return np.maximum(relationship_x, relationship_y)
+        relationship_x_center = self.mr_x[index].w_score_vector(distance_x)
+        relationship_y_center = self.mr_y[index].w_score_vector(distance_y)
+        
+        relationship_x_radius = self.mr_x[index].w_score_vector(abs(distance_x - self.get_distance_x(self.sigma)))
+        relationship_y_radius = self.mr_y[index].w_score_vector(abs(distance_y - self.get_distance_y(self.sigma)))
+
+        return np.maximum(np.maximum(relationship_x_center, relationship_x_radius), np.maximum(relationship_y_center, relationship_y_radius))
 
     # Remove the EV whose index was informed by parameter
     def remove_EV(self, index):
@@ -342,6 +348,9 @@ class eEVM_MTL(object):
                     edge = np.zeros((self.c, 1))
 
                     if self.thr_sigma == -1:
+                        # edge[i] = max(S[i, j], S[j, i])
+                        # edge[j] = - max(S[i, j], S[j, i])
+
                         edge[i] = S[i, j]
                         edge[j] = - S[j, i]
                     else:

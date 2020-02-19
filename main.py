@@ -126,9 +126,8 @@ def read_parameters():
         input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/SP_500_Daily_Closing_Price/'
         experiment_name = 'SP 500 Daily Closing Price'
 
-        sigma_default = 0.9
-        tau_default = 5
-        refresh_rate_default = 10
+        sigma_default = 0.6
+        refresh_rate_default = 2
         rho_1_default = 10
         rho_2_default = 0.1
         rho_3_default = 0.1      
@@ -166,9 +165,10 @@ def read_parameters():
         experiment_name = 'Rain'
 
         dim = 2
-        sigma_default = 0.5
-        refresh_rate_default = 6
-        rho_1_default = 1000
+        sigma_default = 0.1
+        refresh_rate_default = 48
+        rho_1_default = 1
+        window_size_default = 24
 
     experiment_name_complement = input('Add a complement for the experiment name (default = None): ')
     if experiment_name_complement != '':
@@ -219,7 +219,7 @@ def read_parameters():
     else:
         register_experiment = True
     
-    if register_experiment:
+    if dim == 2 and register_experiment:
         plot_frequency = list(map(int, input('Enter the frequency or the intervals you want to generate the plots (default = -1 in case of no plots): ').split()))
         if len(plot_frequency) == 0:
             plot_frequency = -1
@@ -330,6 +330,8 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
 
         for i in tqdm(range(y.shape[0])):
             predictions[i, 0] = model.predict(X[i, :].reshape(1, -1))
+            # if (i % 25) == 0:
+            #     print('para')
             model.train(X[i, :].reshape(1, -1), y[i].reshape(1, -1), np.array([[i]]))
 
             # Saving statistics for the step i
