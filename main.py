@@ -105,39 +105,38 @@ def read_parameters():
 
     if dataset == PLANT_IDENTIFICATION:
         sites = ['Default']
-        input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/Nonlinear_Dynamic_Plant_Identification_With_Time-Varying_Characteristics/'
+        input_path = '/home/amanda/Dropbox/trabalho/testes/aplicacoes/Nonlinear_Dynamic_Plant_Identification_With_Time-Varying_Characteristics/'
         experiment_name = 'Nonlinear Dynamic Plant Identification With Time-Varying Characteristics'
 
+        dim = 2
         sigma_default = 0.1
-        tau_default = 15
         refresh_rate_default = 30        
         rho_1_default = 0.1
     elif dataset == MACKEY_GLASS:
         sites = ['Default']
-        input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/Mackey_Glass/'
+        input_path = '/home/amanda/Dropbox/trabalho/testes/aplicacoes/Mackey_Glass/'
         experiment_name = 'Mackey Glass'
 
         sigma_default = 0
-        tau_default = 5
         refresh_rate_default = 20
         rho_1_default = 0
     elif dataset == SP_500:
         sites = ['Default']
-        input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/SP_500_Daily_Closing_Price/'
+        input_path = '/home/amanda/Dropbox/trabalho/testes/aplicacoes/SP_500_Daily_Closing_Price/'
         experiment_name = 'SP 500 Daily Closing Price'
 
         sigma_default = 0.6
         refresh_rate_default = 2
-        rho_1_default = 10
-        rho_2_default = 0.1
-        rho_3_default = 0.1      
+        rho_1_default = 0.1
+        rho_2_default = 0
+        rho_3_default = 0
     elif dataset == TEMPERATURE:
         sites = ["DeathValley", "Ottawa", "Lisbon"]
-        input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/temperatura/'
+        input_path = '/home/amanda/Dropbox/trabalho/testes/aplicacoes/temperatura/'
         experiment_name = 'Wheater temperature'
 
         dim = 12
-        sigma_default = 0.5        
+        sigma_default = 0.3        
         refresh_rate_default = 48
         window_size_default = 12
         rho_1_default = 1
@@ -147,7 +146,7 @@ def read_parameters():
         else:
             sites = ["9773", "33928", "120525"]
 
-        input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/vento/USA/'
+        input_path = '/home/amanda/Dropbox/trabalho/testes/aplicacoes/vento/USA/'
         experiment_name = 'Wind speed'  
 
         dim = 2
@@ -161,7 +160,7 @@ def read_parameters():
         else:
             sites = [str(i) for i in range(1, 87)]
 
-        input_path = '/home/amanda/Dropbox/trabalho/doutorado/testes/aplicacoes/precipitacao/'
+        input_path = '/home/amanda/Dropbox/trabalho/testes/aplicacoes/precipitacao/'
         experiment_name = 'Rain'
 
         dim = 2
@@ -223,13 +222,13 @@ def read_parameters():
         plot_frequency = list(map(int, input('Enter the frequency or the intervals you want to generate the plots (default = -1 in case of no plots): ').split()))
         if len(plot_frequency) == 0:
             plot_frequency = -1
-        # elif len(plot_frequency) != 1:
-        #     plot = list()
+        elif len(plot_frequency) != 1:
+            plot = list()
 
-        #     for i in range(0, len(plot_frequency), 2):
-        #         plot = plot + list(range(plot_frequency[i], plot_frequency[i + 1]))
+            for i in range(0, len(plot_frequency), 2):
+                plot = plot + list(range(plot_frequency[i], plot_frequency[i + 1]))
             
-        #     plot_frequency = plot
+            plot_frequency = plot
     else:
         plot_frequency = -1
     
@@ -349,9 +348,9 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
             if plot_frequency != -1: 
                 if len(plot_frequency) == 1:
                     if (i % plot_frequency[0]) == 0:
-                        model.plot(artifact_uri + str(i) + '.png')
+                        model.plot(artifact_uri + str(i) + '_input.png', artifact_uri + str(i) + '_output.png')
                 elif i in plot_frequency:
-                    model.plot(artifact_uri + str(i) + '.png')
+                    model.plot(artifact_uri + str(i) + '_input.png', artifact_uri + str(i) + '_output.png')
 
         if register_experiment:
             np.savetxt(artifact_uri + 'predictions.csv', predictions)

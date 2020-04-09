@@ -105,9 +105,19 @@ class eEVM(object):
     def fit_y(self, index, D):
         self.mr_y[index].fit_low(1/2 * D, min(D.shape[0], self.tau))                                                  
 
-    # Get the distance from the origin of the EV which has the given probability to belong to the curve
-    def get_distance(self, index, percentage):
-        return self.mr_x[index].inv(percentage)
+    # Get the distance from the origin of the input EV which has the given probability to belong to the curve
+    def get_distance_input(self, percentage, index=None):
+        if index is None:
+            return [self.mr_x[i].inv(percentage) for i in range(self.c)]
+        else:
+            return self.mr_x[index].inv(percentage)
+
+    # Get the distance from the origin of the output EV which has the given probability to belong to the curve
+    def get_distance_output(self, percentage, index=None):
+        if index is None:
+            return [self.mr_y[i].inv(percentage) for i in range(self.c)]
+        else:
+            return self.mr_y[index].inv(percentage)       
 
     # Obtain the samples that do not belong to the given EV
     def get_external_samples(self, index=None):
@@ -144,36 +154,62 @@ class eEVM(object):
             index = index + 1
 
     # Plot the granules that form the antecedent part of the rules
-    def plot(self, name_figure):
+    def plot(self, name_figure_input, name_figure_output):
+        # Input fuzzy granules plot
         fig = pyplot.figure()
         ax = fig.add_subplot(111, projection='3d')
+        ax.axes.set_xlim3d(left=-2, right=2) 
+        ax.axes.set_ylim3d(bottom=-2, top=2) 
         z_bottom = -0.3
         ax.set_zticklabels("")     
 
         colors = cm.get_cmap('Dark2', self.c)
 
         for i in range(self.c):
-            self.plot_EV(i, ax, '.', colors(i), z_bottom)
+            self.plot_EV_input(i, ax, '.', colors(i), z_bottom)
         
+        # Plot axis' labels
+        ax.set_xlabel('u(t)', fontsize=15)
+        ax.set_ylabel('y(t)', fontsize=15)
+        ax.set_zlabel('$\mu_x$', fontsize=15)        
+
         # Save figure
-        fig.savefig(name_figure)
+        fig.savefig(name_figure_input)
 
         # Close plot
         pyplot.close(fig)
 
-    # Plot the probability of sample inclusion (psi-model) together with the samples associated with the EV
-    def plot_EV(self, index, ax, marker, color, z_bottom):
+        # Output fuzzy granules plot
+        fig = pyplot.figure()
+        ax = fig.add_subplot(111)
+        ax.axes.set_xlim(left=-2, right=3)
+
+        for i in range(self.c):
+            self.plot_EV_output(i, ax, '.', colors(i), z_bottom)
+        
+        # Plot axis' labels
+        ax.set_xlabel('y(t + 1)', fontsize=15)
+        ax.set_ylabel('$\mu_y$', fontsize=15)
+
+        # Save figure
+        fig.savefig(name_figure_output)
+
+        # Close plot
+        pyplot.close(fig)        
+
+    # Plot the probability of sample inclusion (psi-model) together with the samples associated with the EV for the input fuzzy granules
+    def plot_EV_input(self, index, ax, marker, color, z_bottom):
         # Plot the input samples in the XY plan
-        #ax.scatter(self.X[index][:, 0], self.X[index][:, 1], z_bottom * np.ones((self.X[index].shape[0], 1)), marker=marker, color=color)
+        ax.scatter(self.X[index][:, 0], self.X[index][:, 1], z_bottom * np.ones((self.X[index].shape[0], 1)), marker=marker, color=color)
 
         # Plot the radius for which there is a probability sigma to belong to the EV
-        #radius = self.get_distance(index, self.sigma)
-        #p = Circle((self.x0[index][0, 0], self.x0[index][0, 1]), radius, fill=False, color=color)
-        #ax.add_patch(p)
-        #art3d.pathpatch_2d_to_3d(p, z=z_bottom, zdir="z")
+        radius = self.get_distance_input(self.sigma, index)
+        p = Circle((self.x0[index][0, 0], self.x0[index][0, 1]), radius, fill=False, color=color)
+        ax.add_patch(p)
+        art3d.pathpatch_2d_to_3d(p, z=z_bottom, zdir="z")
 
         # Plot the psi curve of the EV
-        r = np.linspace(0, self.get_distance(index, 0.05), 100)
+        r = np.linspace(0, self.get_distance_input(0.05, index), 100)
         theta = np.linspace(0, 2 * np.pi, 145)    
         radius_matrix, theta_matrix = np.meshgrid(r,theta)            
         X = self.x0[index][0, 0] + radius_matrix * np.cos(theta_matrix)
@@ -181,6 +217,18 @@ class eEVM(object):
         points = np.array([np.array([X, Y])[0, :, :].reshape(-1), np.array([X, Y])[1, :, :].reshape(-1)]).T
         Z = self.firing_degree(index, points)
         ax.plot_surface(X, Y, Z.reshape((X.shape[0], X.shape[1])), antialiased=False, cmap=cm.coolwarm, alpha=0.1)
+
+    # Plot the probability of sample inclusion (psi-model) together with the samples associated with the EV for the output fuzzy granules
+    def plot_EV_output(self, index, ax, marker, color, z_bottom):
+        # Plot the output data points in the X axis
+        ax.scatter(self.y[index], np.zeros_like(self.y[index]), marker=marker, color=color)
+
+        # Plot the psi curve of the EV
+        r = np.linspace(0, self.get_distance_output(0.01, index), 100)
+        points = np.concatenate((np.flip((self.y0[index] - r).T, axis=0), (self.y0[index] + r).T), axis=0)
+        Z = self.firing_degree(index, y=points)
+        #ax.plot(points, Z, antialiased=False, cmap=cm.coolwarm, alpha=0.1)
+        ax.plot(points, Z, color=color)
 
     # Predict the output given the input sample x
     def predict(self, x):
