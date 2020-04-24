@@ -100,7 +100,7 @@ def read_parameters():
     tau_default = 99999
     rho_2_default = 0
     rho_3_default = 0
-    thr_sigma_default = -1
+    thr_sigma_default = -2
     window_size_default = 4
 
     if dataset == PLANT_IDENTIFICATION:
@@ -202,7 +202,7 @@ def read_parameters():
         if len(rho_3) == 0:
             rho_3 = [rho_3_default]
 
-        thr_sigma = list(map(float, input('Enter the thr_sigma (default value = ' + str(thr_sigma_default) + '): ').split()))
+        thr_sigma = list(map(float, input('Enter the thr_sigma - symmetric == -2 | non-symmetric == -1 | binarized in [0, 1] (default value = ' + str(thr_sigma_default) + '): ').split()))
         if len(thr_sigma) == 0:
             thr_sigma = [thr_sigma_default]
     else:

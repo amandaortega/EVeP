@@ -24,7 +24,7 @@ class eEVM_MTL(object):
     """
 
     # Model initialization
-    def __init__(self, sigma=0.5, tau=75, refresh_rate=50, window_size=np.Inf, rho_1=1, rho_2=0, rho_3=0, thr_sigma=0.1):        
+    def __init__(self, sigma=0.5, tau=75, refresh_rate=50, window_size=np.Inf, rho_1=1, rho_2=0, rho_3=0, thr_sigma=0.1, MTL_version=0):        
         # Setting EVM algorithm parameters
         self.sigma = sigma
         self.tau = tau
@@ -36,6 +36,7 @@ class eEVM_MTL(object):
         self.thr_sigma = thr_sigma
         self.init_theta = 2
         self.srmtl = Least_SRMTL(rho_1, rho_3, rho_3)
+        self.MTL_version = MTL_version
 
         self.mr_x = list()
         self.mr_y = list()
@@ -374,7 +375,7 @@ class eEVM_MTL(object):
         for i in range(self.c):
             S[i, :] = self.relationship_rules(i)
         
-        if self.thr_sigma != -1:
+        if self.thr_sigma >= 0:
             S = np.maximum(S, S.T)
             S = S > self.thr_sigma
 
@@ -386,11 +387,11 @@ class eEVM_MTL(object):
                     edge = np.zeros((self.c, 1))
 
                     if self.thr_sigma == -1:
-                        # edge[i] = max(S[i, j], S[j, i])
-                        # edge[j] = - max(S[i, j], S[j, i])
-
                         edge[i] = S[i, j]
                         edge[j] = - S[j, i]
+                    elif self.thr_sigma == -2:
+                        edge[i] = max(S[i, j], S[j, i])
+                        edge[j] = - max(S[i, j], S[j, i])                        
                     else:
                         edge[i] = 1
                         edge[j] = -1
