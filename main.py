@@ -202,7 +202,7 @@ def read_parameters():
         if len(rho_3) == 0:
             rho_3 = [rho_3_default]
 
-        thr_sigma = list(map(float, input('Enter the thr_sigma - symmetric == -2 | non-symmetric == -1 | binarized in [0, 1] (default value = ' + str(thr_sigma_default) + '): ').split()))
+        thr_sigma = list(map(float, input('Enter the thr_sigma - symmetric == -2 | asymmetric == -1 | binarized in [0, 1] (default value = ' + str(thr_sigma_default) + '): ').split()))
         if len(thr_sigma) == 0:
             thr_sigma = [thr_sigma_default]
     else:

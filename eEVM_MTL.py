@@ -5,6 +5,7 @@
 """
 
 from Least_SRMTL import Least_SRMTL
+from Least_SRMTL2 import Least_SRMTL2
 import libmr
 from matplotlib import pyplot, cm
 from matplotlib.patches import Circle
@@ -24,7 +25,7 @@ class eEVM_MTL(object):
     """
 
     # Model initialization
-    def __init__(self, sigma=0.5, tau=75, refresh_rate=50, window_size=np.Inf, rho_1=1, rho_2=0, rho_3=0, thr_sigma=0.1, MTL_version=0):        
+    def __init__(self, sigma=0.5, tau=75, refresh_rate=50, window_size=np.Inf, rho_1=1, rho_2=0, rho_3=0, thr_sigma=-2):        
         # Setting EVM algorithm parameters
         self.sigma = sigma
         self.tau = tau
@@ -35,8 +36,11 @@ class eEVM_MTL(object):
         self.rho_3 = rho_3
         self.thr_sigma = thr_sigma
         self.init_theta = 2
-        self.srmtl = Least_SRMTL(rho_1, rho_3, rho_3)
-        self.MTL_version = MTL_version
+
+        if self.thr_sigma == -1:
+            self.srmtl = Least_SRMTL2(rho_1, rho_3, rho_3)
+        else:
+            self.srmtl = Least_SRMTL(rho_1, rho_3, rho_3)
 
         self.mr_x = list()
         self.mr_y = list()
@@ -379,30 +383,34 @@ class eEVM_MTL(object):
             S = np.maximum(S, S.T)
             S = S > self.thr_sigma
 
-        self.R = None
+        if self.thr_sigma == -1:
+            np.fill_diagonal(S, 0)
+            self.R = S
+        else:
+            self.R = None
 
-        for i in range(self.c):
-            for j in range(i + 1, self.c):
-                if S[i, j] > 0 or S[j, i] > 0:
-                    edge = np.zeros((self.c, 1))
+            for i in range(self.c):
+                for j in range(i + 1, self.c):
+                    if S[i, j] > 0 or S[j, i] > 0:
+                        edge = np.zeros((self.c, 1))
 
-                    if self.thr_sigma == -1:
-                        edge[i] = S[i, j]
-                        edge[j] = - S[j, i]
-                    elif self.thr_sigma == -2:
-                        edge[i] = max(S[i, j], S[j, i])
-                        edge[j] = - max(S[i, j], S[j, i])                        
-                    else:
-                        edge[i] = 1
-                        edge[j] = -1
+                        if self.thr_sigma == -2:
+                            #asymmetric
+                            #edge[i] = S[i, j]
+                            #edge[j] = - S[j, i]                            
+                            edge[i] = max(S[i, j], S[j, i])
+                            edge[j] = - max(S[i, j], S[j, i])                        
+                        else:
+                            edge[i] = 1
+                            edge[j] = -1
 
-                    if self.R is None:
-                        self.R = edge
-                    else:
-                        self.R = np.concatenate((self.R, edge), axis=1)
+                        if self.R is None:
+                            self.R = edge
+                        else:
+                            self.R = np.concatenate((self.R, edge), axis=1)
         
-        if self.R is None:
-            self.connection_rate = 0
+        if self.R is None or np.sum(range(self.c)) == 0:
+            self.connection_rate = -1
         else:
             self.connection_rate = self.R.shape[1] / np.sum(range(self.c))
 
