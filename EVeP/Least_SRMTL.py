@@ -1,6 +1,6 @@
 # Least_SRMTL
 # Sparse Structure-Regularized Learning with Least Squares Loss.
-# Adapted from the MALSAR package developed in Matlab by Amanda O. C. Ayres
+# Adapted from the MALSAR package by Amanda O. C. Ayres
 # May 2020
 
 # OBJECTIVE
