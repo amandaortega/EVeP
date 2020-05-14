@@ -14,7 +14,7 @@ Please cite EVeP in your publications if it helps your research:
 Running
 =======
 
-EVeP was implemented with Python 3.6.
+EVeP was implemented with Python 3.6. After installing the prerequisites, you can run the file main.py.
 
 Prerequisites
 -------------
@@ -25,6 +25,14 @@ Prerequisites
 
 Project layout
 --------------
+
+- EVeP: Python codes
+- EVeP/mlruns: Results of the experiments
+- EVeP/mlruns/1: Nonlinear Dynamic Plant Identification With Time-Varying Characteristics
+- EVeP/mlruns/2: Mackey Glass
+- EVeP/mlruns/3: SP 500 Daily Closing Price
+- EVeP/mlruns/4: Wind speed
+- data: Time series datasets used to test EVeP
 
 Contributor
 ===========
