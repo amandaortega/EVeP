@@ -3,7 +3,7 @@
     Created in: September 19, 2019
     Python version: 3.6
 """
-
+from Least_SRMTL import Least_SRMTL
 import libmr
 from matplotlib import pyplot, cm
 from matplotlib.patches import Circle
@@ -12,8 +12,7 @@ import numpy as np
 import numpy.matlib
 import sklearn.metrics
 
-class eEVM_RLS(object):
-    P0 = 10**6
+class EVeP(object):
 
     """
     evolving Extreme Value Machine
@@ -24,13 +23,18 @@ class eEVM_RLS(object):
     """
 
     # Model initialization
-    def __init__(self, sigma=0.5, tau=75, refresh_rate=50, window_size=np.Inf):        
+    def __init__(self, sigma=0.5, delta=50, N=np.Inf, rho=None):        
         # Setting EVM algorithm parameters
         self.sigma = sigma
-        self.tau = tau
-        self.refresh_rate = refresh_rate
-        self.window_size = window_size    
-        self.last_cluster_id = -1
+        self.tau = 99999
+        self.delta = delta
+        self.N = N    
+        self.rho = rho
+        
+        if self.rho is not None:
+            self.init_theta = 2
+            self.srmtl = Least_SRMTL(rho)
+            self.R = None
 
         self.mr_x = list()
         self.mr_y = list()
@@ -41,7 +45,6 @@ class eEVM_RLS(object):
         self.step = list()
         self.last_update = list()
         self.theta = list()
-        self.P = list()
         self.c = 0
 
     # Initialization of a new instance of EV.
@@ -55,34 +58,38 @@ class eEVM_RLS(object):
         self.step.append(step)
         self.last_update.append(np.max(step))
         self.theta.append(np.zeros_like(x0))
-        self.theta[-1] = np.insert(self.theta[-1], 0, y0, axis=1).T
-        self.P.append(self.P0 * np.eye(x0.shape[1] + 1))        
         self.c = self.c + 1
 
+        if self.rho is None:
+            # coefficients of the consequent part        
+            self.theta[-1] = np.insert(self.theta[-1], 0, y0, axis=1).T        
+        else:
+            self.init_theta = 2
+            # coefficients of the consequent part        
+            self.theta[-1] = np.insert(self.theta[-1], 0, y0, axis=1)            
+
     # Add the sample(s) (X, y) as covered by the extreme vector. Remove repeated points.
-    def add_sample_to_EV(self, index, X, y, step, theta=None):
+    def add_sample_to_EV(self, index, X, y, step, update_theta=True):
         self.X[index] = np.concatenate((self.X[index], X))
         self.y[index] = np.concatenate((self.y[index], y))
         self.step[index] = np.concatenate((self.step[index], step))          
 
-        if theta is None:
-            X = np.insert(X, 0, 1, axis=1).T
-            self.P[index] = self.P[index] @ (np.eye(X.shape[0]) - X @ X.T @ self.P[index] / (1 + X.T @ self.P[index] @ X))
-            self.theta[index] = self.theta[index] + (self.P[index] @ X @ (y - X.T @ self.theta[index]))
-        else:
-            self.theta[index] = (self.theta[index] + theta) / 2
-
-        if self.X[index].shape[0] > self.window_size:
+        if self.X[index].shape[0] > self.N:
             indexes = np.argsort(-self.step[index].reshape(-1))
 
-            self.X[index] = self.X[index][indexes[: self.window_size], :]
-            self.y[index] = self.y[index][indexes[: self.window_size]]
-            self.step[index] = self.step[index][indexes[: self.window_size]]
+            self.X[index] = self.X[index][indexes[: self.N], :]
+            self.y[index] = self.y[index][indexes[: self.N]]
+            self.step[index] = self.step[index][indexes[: self.N]]
         
         self.x0[index] = np.average(self.X[index], axis=0).reshape(1, -1)
         self.y0[index] = np.average(self.y[index], axis=0).reshape(1, -1)
 
         self.last_update[index] = np.max(self.step[index])
+
+        if self.rho is None:
+            self.theta[index] = np.linalg.lstsq(np.insert(self.X[index], 0, 1, axis=1), self.y[index])[0]
+        elif update_theta:
+            self.update_theta()
 
     def delete_from_list(self, list_, indexes):
         for i in sorted(indexes, reverse=True):
@@ -112,9 +119,19 @@ class eEVM_RLS(object):
     def fit_y(self, index, D):
         self.mr_y[index].fit_low(1/2 * D, min(D.shape[0], self.tau))                                                  
 
-    # Get the distance from the origin of the EV which has the given probability to belong to the curve
-    def get_distance(self, index, percentage):
-        return self.mr_x[index].inv(percentage)
+    # Get the distance from the origin of the input EV which has the given probability to belong to the curve
+    def get_distance_input(self, percentage, index=None):
+        if index is None:
+            return [self.mr_x[i].inv(percentage) for i in range(self.c)]
+        else:
+            return self.mr_x[index].inv(percentage)
+
+    # Get the distance from the origin of the output EV which has the given probability to belong to the curve
+    def get_distance_output(self, percentage, index=None):
+        if index is None:
+            return [self.mr_y[i].inv(percentage) for i in range(self.c)]
+        else:
+            return self.mr_y[index].inv(percentage)
 
     # Obtain the samples that do not belong to the given EV
     def get_external_samples(self, index=None):
@@ -135,6 +152,7 @@ class eEVM_RLS(object):
     def merge(self):
         self.sort_EVs()
         index = 0
+        update_R = False
 
         while index < self.c:
             if index + 1 < self.c:
@@ -144,43 +162,77 @@ class eEVM_RLS(object):
                 S_index = self.firing_degree(index, x0, y0)
                 index_to_merge = np.where(S_index > self.sigma)[0] + index + 1
 
+                if index_to_merge.size > 0:
+                    update_R = True
+
                 for i in reversed(range(len(index_to_merge))):
-                    self.add_sample_to_EV(index, self.X[index_to_merge[i]], self.y[index_to_merge[i]], self.step[index_to_merge[i]], self.theta[index_to_merge[i]])
+                    self.add_sample_to_EV(index, self.X[index_to_merge[i]], self.y[index_to_merge[i]], self.step[index_to_merge[i]], False)
                     self.remove_EV([index_to_merge[i]])
             
             index = index + 1
 
+        if self.rho is not None and update_R:
+            self.update_R()
+            self.init_theta = 2
+            self.update_theta()
+
     # Plot the granules that form the antecedent part of the rules
-    def plot(self, name_figure):
+    def plot(self, name_figure_input, name_figure_output):
+        # Input fuzzy granules plot
         fig = pyplot.figure()
         ax = fig.add_subplot(111, projection='3d')
+        ax.axes.set_xlim3d(left=-2, right=2) 
+        ax.axes.set_ylim3d(bottom=-2, top=2) 
         z_bottom = -0.3
-        ax.set_zticklabels("")        
+        ax.set_zticklabels("")     
 
         colors = cm.get_cmap('Dark2', self.c)
 
         for i in range(self.c):
-            self.plot_EV(i, ax, '.', colors(i), z_bottom)
+            self.plot_EV_input(i, ax, '.', colors(i), z_bottom)
         
+        # Plot axis' labels
+        ax.set_xlabel('u(t)', fontsize=15)
+        ax.set_ylabel('y(t)', fontsize=15)
+        ax.set_zlabel('$\mu_x$', fontsize=15)        
+
         # Save figure
-        fig.savefig(name_figure)
+        fig.savefig(name_figure_input)
 
         # Close plot
         pyplot.close(fig)
 
-    # Plot the probability of sample inclusion (psi-model) together with the samples associated with the EV
-    def plot_EV(self, index, ax, marker, color, z_bottom):
+        # Output fuzzy granules plot
+        fig = pyplot.figure()
+        ax = fig.add_subplot(111)
+        ax.axes.set_xlim(left=-2, right=3)
+
+        for i in range(self.c):
+            self.plot_EV_output(i, ax, '.', colors(i), z_bottom)
+        
+        # Plot axis' labels
+        ax.set_xlabel('y(t + 1)', fontsize=15)
+        ax.set_ylabel('$\mu_y$', fontsize=15)
+
+        # Save figure
+        fig.savefig(name_figure_output)
+
+        # Close plot
+        pyplot.close(fig)        
+
+    # Plot the probability of sample inclusion (psi-model) together with the samples associated with the EV for the input fuzzy granules
+    def plot_EV_input(self, index, ax, marker, color, z_bottom):
         # Plot the input samples in the XY plan
         ax.scatter(self.X[index][:, 0], self.X[index][:, 1], z_bottom * np.ones((self.X[index].shape[0], 1)), marker=marker, color=color)
 
         # Plot the radius for which there is a probability sigma to belong to the EV
-        radius = self.get_distance(index, self.sigma)
+        radius = self.get_distance_input(self.sigma, index)
         p = Circle((self.x0[index][0, 0], self.x0[index][0, 1]), radius, fill=False, color=color)
         ax.add_patch(p)
         art3d.pathpatch_2d_to_3d(p, z=z_bottom, zdir="z")
 
         # Plot the psi curve of the EV
-        r = np.linspace(0, self.get_distance(index, 0.05), 100)
+        r = np.linspace(0, self.get_distance_input(0.05, index), 100)
         theta = np.linspace(0, 2 * np.pi, 145)    
         radius_matrix, theta_matrix = np.meshgrid(r,theta)            
         X = self.x0[index][0, 0] + radius_matrix * np.cos(theta_matrix)
@@ -188,6 +240,18 @@ class eEVM_RLS(object):
         points = np.array([np.array([X, Y])[0, :, :].reshape(-1), np.array([X, Y])[1, :, :].reshape(-1)]).T
         Z = self.firing_degree(index, points)
         ax.plot_surface(X, Y, Z.reshape((X.shape[0], X.shape[1])), antialiased=False, cmap=cm.coolwarm, alpha=0.1)
+
+    # Plot the probability of sample inclusion (psi-model) together with the samples associated with the EV for the output fuzzy granules
+    def plot_EV_output(self, index, ax, marker, color, z_bottom):
+        # Plot the output data points in the X axis
+        ax.scatter(self.y[index], np.zeros_like(self.y[index]), marker=marker, color=color)
+
+        # Plot the psi curve of the EV
+        r = np.linspace(0, self.get_distance_output(0.01, index), 100)
+        points = np.concatenate((np.flip((self.y0[index] - r).T, axis=0), (self.y0[index] + r).T), axis=0)
+        Z = self.firing_degree(index, y=points)
+        #ax.plot(points, Z, antialiased=False, cmap=cm.coolwarm, alpha=0.1)
+        ax.plot(points, Z, color=color)
 
     # Predict the output given the input sample x
     def predict(self, x):
@@ -211,7 +275,22 @@ class eEVM_RLS(object):
 
     # Predict the local output of x based on the linear regression of the samples stored at the EV
     def predict_EV(self, index, x):
-        return np.insert(x, 0, 1).reshape(1, -1) @ self.theta[index]        
+        if self.rho is None:
+            return np.insert(x, 0, 1).reshape(1, -1) @ self.theta[index]
+        return np.insert(x, 0, 1).reshape(1, -1) @ self.theta[index].T
+
+    # Calculate the degree of relationship of all the rules to the rule of index informed as parameter
+    def relationship_rules(self, index):
+        distance_x = sklearn.metrics.pairwise.pairwise_distances(self.x0[index], np.concatenate(self.x0)).reshape(-1)
+        distance_y = sklearn.metrics.pairwise.pairwise_distances(self.y0[index], np.concatenate(self.y0)).reshape(-1)
+
+        relationship_x_center = self.mr_x[index].w_score_vector(distance_x)
+        relationship_y_center = self.mr_y[index].w_score_vector(distance_y)
+        
+        relationship_x_radius = self.mr_x[index].w_score_vector(distance_x - self.get_distance_input(self.sigma))
+        relationship_y_radius = self.mr_y[index].w_score_vector(distance_y - self.get_distance_output(self.sigma))
+
+        return np.maximum(np.maximum(relationship_x_center, relationship_x_radius), np.maximum(relationship_y_center, relationship_y_radius))
 
     # Remove the EV whose index was informed by parameter
     def remove_EV(self, index):
@@ -235,7 +314,11 @@ class eEVM_RLS(object):
                 indexes_to_remove.append(index)
 
         if len(indexes_to_remove) > 0:
-            self.remove_EV(indexes_to_remove)    
+            self.remove_EV(indexes_to_remove)
+
+            if self.rho is not None:
+                self.update_R()
+                self.init_theta = 2
 
     # Sort the EVs according to the last update
     def sort_EVs(self):
@@ -270,21 +353,48 @@ class eEVM_RLS(object):
             # Add the sample to an existing EV
             if best_EV is not None:
                 self.add_sample_to_EV(best_EV, x, y, step)
-                index = best_EV
             # Create a new EV
             else:
                 self.add_EV(x, y, step)
             
-            self.update_EVs(index)
+            self.update_EVs()
 
-        if step != 0 and (step % self.refresh_rate) == 0:      
-            self.remove_outdated_EVs(step[0, 0] - self.refresh_rate)
+            if self.rho is not None:
+                self.update_R()
+
+        if step != 0 and (step % self.delta) == 0:      
+            self.remove_outdated_EVs(step[0, 0] - self.delta)
             self.merge()
 
-    # Update the psi curve of the EVs that do not belong to the model_selected
-    def update_EVs(self, index):
+    # Update the psi curve of the EVs
+    def update_EVs(self):
         for i in range(self.c):
             (X_ext, y_ext) = self.get_external_samples(i)
 
             if X_ext.shape[0] > 0:
                 self.fit(i, X_ext, y_ext)
+
+    def update_R(self):        
+        S = np.zeros((self.c, self.c))
+
+        for i in range(self.c):
+            S[i, :] = self.relationship_rules(i)
+
+        self.R = None
+
+        for i in range(self.c):
+            for j in range(i + 1, self.c):
+                if S[i, j] > 0 or S[j, i] > 0:
+                    edge = np.zeros((self.c, 1))
+
+                    edge[i] = max(S[i, j], S[j, i])
+                    edge[j] = - max(S[i, j], S[j, i])
+
+                    if self.R is None:
+                        self.R = edge
+                    else:
+                        self.R = np.concatenate((self.R, edge), axis=1)
+
+    def update_theta(self):
+        self.theta = self.srmtl.train(self.X, self.y, self.R, self.init_theta)
+        self.init_theta = 1

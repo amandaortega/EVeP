@@ -1,13 +1,14 @@
 # Least_SRMTL
 # Sparse Structure-Regularized Learning with Least Squares Loss.
+# Adapted from the MALSAR package developed in Matlab by Amanda O. C. Ayres
+# May 2020
 
 # OBJECTIVE
 # argmin_W { sum_i^t (0.5 * norm (Y{i} - X{i}' * W(:, i))^2)
 #             + rho1 * norm(W*R, 'fro')^2 + rho2 * \|W\|_1}
 
 # R encodes the structure relationship
-# 1)Structure order is given by using [1 -1 0 ...; 0 1 -1 ...; ...]
-# e.g.: R=zeros(t,t-1);R(1:(t+1):end)=1;R(2:(t+1):end)=-1;
+# 1)Structure order is given by using [s12 -s12 0 ...; 0 s23 -s23 ...; ...]
 # 2)Ridge penalty term by setting: R = eye(t)
 # 3)All related regularized: R = eye (t) - ones (t) / t
 
