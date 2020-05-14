@@ -1,0 +1,15 @@
+artifact_uri: file:///home/amanda/Dropbox/trabalho/codigos/propostas/EVeP/EVeP/mlruns/4/ba9521b127e54ee0b151434a3a1c4431/artifacts
+end_time: 1589480851902
+entry_point_name: ''
+experiment_id: '4'
+lifecycle_stage: active
+name: ''
+run_id: ba9521b127e54ee0b151434a3a1c4431
+run_uuid: ba9521b127e54ee0b151434a3a1c4431
+source_name: ''
+source_type: 4
+source_version: ''
+start_time: 1589480739600
+status: 3
+tags: []
+user_id: amanda

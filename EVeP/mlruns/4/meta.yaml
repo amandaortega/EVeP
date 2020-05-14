@@ -1,0 +1,4 @@
+artifact_location: file:///home/amanda/Dropbox/trabalho/codigos/propostas/EVeP/EVeP/mlruns/4
+experiment_id: '4'
+lifecycle_stage: active
+name: Wind speed

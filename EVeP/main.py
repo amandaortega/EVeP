@@ -76,7 +76,7 @@ def read_parameters():
 
     if dataset == PLANT_IDENTIFICATION:
         sites = ['Default']
-        input_path_default = '/home/amanda/Dropbox/trabalho/testes/aplicacoes/Nonlinear_Dynamic_Plant_Identification_With_Time-Varying_Characteristics/data/'
+        input_path_default = '../data/Nonlinear_Dynamic_Plant_Identification_With_Time-Varying_Characteristics/'
         experiment_name = 'Nonlinear Dynamic Plant Identification With Time-Varying Characteristics'
 
         dim = 2
@@ -85,7 +85,7 @@ def read_parameters():
         rho_default = 0.1
     elif dataset == MACKEY_GLASS:
         sites = ['Default']
-        input_path_default = '/home/amanda/Dropbox/trabalho/testes/aplicacoes/Mackey_Glass/data/'
+        input_path_default = '../data/Mackey_Glass/'
         experiment_name = 'Mackey Glass'
 
         sigma_default = 0
@@ -94,7 +94,7 @@ def read_parameters():
         N_default = 3
     elif dataset == SP_500:
         sites = ['Default']
-        input_path_default = '/home/amanda/Dropbox/trabalho/testes/aplicacoes/SP_500_Daily_Closing_Price/data/'
+        input_path_default = '../data/SP_500_Daily_Closing_Price/'
         experiment_name = 'SP 500 Daily Closing Price'
 
         sigma_default = 0.6
@@ -117,7 +117,7 @@ def read_parameters():
         else:
             sites = ["9773", "33928", "120525"]
 
-        input_path_default = '/home/amanda/Dropbox/trabalho/testes/aplicacoes/vento/data/'
+        input_path_default = '../data/wind/'
         experiment_name = 'Wind speed'  
 
         dim = 2
