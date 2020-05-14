@@ -5,6 +5,12 @@ The Extreme Value evolving Predictor (EVeP) is an evolving fuzzy-rule-based algo
 License
 =======
 
+This version of EVeP is released under the MIT license. (see LICENSE.txt).
+
+Please cite EVeP in your publications if it helps your research:
+
+...
+
 Installation
 ============
 
