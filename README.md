@@ -23,11 +23,9 @@ Prerequisites
 
 - MLflow - Open source platform to manage the ML lifecycle. Used to generate the results of the experiments. Available at https://mlflow.org/. To install: pip install mlflow
 
-Other packages:
-
 - sklearn: pip3 install sklearn
+
 - tqdm: pip install tqdm
-- 
 
 Project layout
 --------------
