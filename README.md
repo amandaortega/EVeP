@@ -19,9 +19,15 @@ EVeP was implemented with Python 3.6. After installing the prerequisites, you ca
 Prerequisites
 -------------
 
-- libMR - Library for Meta-Recognition and Weibull based calibration of SVMdata. Used to apply the methods founded on the Extreme Value Theory. Available at https://pypi.org/project/libmr/. More information can be found in Scheirer, W. J., Rocha, A., Micheals, R. J., & Boult, T. E. (2011). Meta-recognition: The theory and practice of recognition score analysis. IEEE transactions on pattern analysis and machine intelligence, 33(8), 1689-1695.
+- libMR - Library for Meta-Recognition and Weibull based calibration of SVMdata. Used to apply the methods founded on the Extreme Value Theory. Available at https://pypi.org/project/libmr/. More information can be found in Scheirer, W. J., Rocha, A., Micheals, R. J., & Boult, T. E. (2011). Meta-recognition: The theory and practice of recognition score analysis. IEEE transactions on pattern analysis and machine intelligence, 33(8), 1689-1695. To install: pip install libmr
 
-- MLflow - Open source platform to manage the ML lifecycle. Used to generate the results of the experiments. Available at https://mlflow.org/.
+- MLflow - Open source platform to manage the ML lifecycle. Used to generate the results of the experiments. Available at https://mlflow.org/. To install: pip install mlflow
+
+Other packages:
+
+- sklearn: pip3 install sklearn
+- tqdm: pip install tqdm
+- 
 
 Project layout
 --------------
