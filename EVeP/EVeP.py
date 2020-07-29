@@ -69,7 +69,7 @@ class EVeP(object):
             self.theta[-1] = np.insert(self.theta[-1], 0, y0, axis=1)            
 
     # Add the sample(s) (X, y) as covered by the extreme vector. Remove repeated points.
-    def add_sample_to_EV(self, index, X, y, step, update_theta=True):
+    def add_sample_to_EV(self, index, X, y, step):
         self.X[index] = np.concatenate((self.X[index], X))
         self.y[index] = np.concatenate((self.y[index], y))
         self.step[index] = np.concatenate((self.step[index], step))          
@@ -87,9 +87,7 @@ class EVeP(object):
         self.last_update[index] = np.max(self.step[index])
 
         if self.rho is None:
-            self.theta[index] = np.linalg.lstsq(np.insert(self.X[index], 0, 1, axis=1), self.y[index])[0]
-        elif update_theta:
-            self.update_theta()
+            self.theta[index] = np.linalg.lstsq(np.insert(self.X[index], 0, 1, axis=1), self.y[index], rcond=None)[0]
 
     def delete_from_list(self, list_, indexes):
         for i in sorted(indexes, reverse=True):
@@ -152,8 +150,7 @@ class EVeP(object):
     def merge(self):
         self.sort_EVs()
         index = 0
-        update_R = False
-
+        
         while index < self.c:
             if index + 1 < self.c:
                 x0 = np.concatenate(self.x0[index + 1 : ])
@@ -163,18 +160,13 @@ class EVeP(object):
                 index_to_merge = np.where(S_index > self.sigma)[0] + index + 1
 
                 if index_to_merge.size > 0:
-                    update_R = True
+                    self.init_theta = 2
 
                 for i in reversed(range(len(index_to_merge))):
-                    self.add_sample_to_EV(index, self.X[index_to_merge[i]], self.y[index_to_merge[i]], self.step[index_to_merge[i]], False)
+                    self.add_sample_to_EV(index, self.X[index_to_merge[i]], self.y[index_to_merge[i]], self.step[index_to_merge[i]])
                     self.remove_EV([index_to_merge[i]])
             
             index = index + 1
-
-        if self.rho is not None and update_R:
-            self.update_R()
-            self.init_theta = 2
-            self.update_theta()
 
     # Plot the granules that form the antecedent part of the rules
     def plot(self, name_figure_input, name_figure_output):
@@ -335,36 +327,40 @@ class EVeP(object):
 
     # Evolves the model (main method)
     def train(self, x, y, step):
-        # empty antecedents
-        if self.c == 0:
-            self.add_EV(x, y, step)
+        best_EV = None
+        best_EV_value = 0            
+
+        # check if it is possible to insert the sample in an existing model
+        for index in range(self.c):
+            tau = self.firing_degree(index, x, y)
+
+            if tau > best_EV_value and tau > self.sigma:
+                best_EV = index
+                best_EV_value = tau
+        
+        update = False
+
+        # Add the sample to an existing EV
+        if best_EV is not None:
+            self.add_sample_to_EV(best_EV, x, y, step)
+        # Create a new EV
         else:
-            best_EV = None
-            best_EV_value = 0            
-
-            # check if it is possible to insert the sample in an existing model
-            for index in range(self.c):
-                tau = self.firing_degree(index, x, y)
-
-                if tau > best_EV_value and tau > self.sigma:
-                    best_EV = index
-                    best_EV_value = tau
-            
-            # Add the sample to an existing EV
-            if best_EV is not None:
-                self.add_sample_to_EV(best_EV, x, y, step)
-            # Create a new EV
-            else:
-                self.add_EV(x, y, step)
-            
-            self.update_EVs()
-
-            if self.rho is not None:
-                self.update_R()
+            self.add_EV(x, y, step)                        
+            update = True
+        
+        self.update_EVs()
 
         if step != 0 and (step % self.delta) == 0:      
             self.remove_outdated_EVs(step[0, 0] - self.delta)
             self.merge()
+            update = True
+
+        if self.rho is not None:
+            if update:
+                self.update_R()
+
+            self.theta = self.srmtl.train(self.X, self.y, self.R, self.init_theta)
+            self.init_theta = 1
 
     # Update the psi curve of the EVs
     def update_EVs(self):
@@ -394,7 +390,3 @@ class EVeP(object):
                         self.R = edge
                     else:
                         self.R = np.concatenate((self.R, edge), axis=1)
-
-    def update_theta(self):
-        self.theta = self.srmtl.train(self.X, self.y, self.R, self.init_theta)
-        self.init_theta = 1
