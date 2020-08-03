@@ -23,13 +23,14 @@ class EVeP(object):
     """
 
     # Model initialization
-    def __init__(self, sigma=0.5, delta=50, N=np.Inf, rho=None):        
+    def __init__(self, sigma=0.5, delta=50, N=np.Inf, rho=None, columns_ts=None):        
         # Setting EVM algorithm parameters
         self.sigma = sigma
         self.tau = 99999
         self.delta = delta
         self.N = N    
         self.rho = rho
+        self.columns_ts = columns_ts
         
         if self.rho is not None:
             self.init_theta = 2
@@ -247,10 +248,6 @@ class EVeP(object):
 
     # Predict the output given the input sample x
     def predict(self, x):
-        # Checking for system prior knowledge
-        if self.c == 0:
-            return np.mean(x)
-
         num = 0
         den = 0
 
@@ -261,7 +258,7 @@ class EVeP(object):
             den = den + self.firing_degree(i, x, p)
 
         if den == 0:
-            return np.mean(x)
+            return np.mean(x[:, self.columns_ts])
 
         return num / den
 

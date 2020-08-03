@@ -4,8 +4,10 @@ from math import sqrt
 import matplotlib.pyplot as plt
 import mlflow
 import numpy as np
+import os
 from sklearn.metrics import mean_squared_error
 from tqdm import tqdm
+import warnings
 
 # databases IDs
 PLANT_IDENTIFICATION = 1
@@ -14,6 +16,7 @@ SP_500 = 3
 TEMPERATURE = 4
 WIND = 5
 RAIN = 6
+GAS_FURNACE = 7
 
 # algorithm versions
 LS = 0
@@ -29,7 +32,7 @@ def read_csv(file, dataset):
 
     if dataset in [TEMPERATURE, PLANT_IDENTIFICATION, MACKEY_GLASS, SP_500, RAIN]:
         delimiter = ','
-    elif dataset == WIND:
+    elif dataset in [WIND, GAS_FURNACE]:
         delimiter = ' '
 
     with open(file, newline='') as csvfile:
@@ -67,12 +70,13 @@ def read_parameters():
     try:
         dataset = int(input('Enter the dataset to be tested:\n1- Nonlinear Dynamic Plant Identification With Time-Varying Characteristics (default)\n' + 
         '2- Mackey–Glass Chaotic Time Series (Long-Term Prediction)\n3- Online Prediction of S&P 500 Daily Closing Price\n' + 
-        '4- Wheater temperature\n5- Wind speed\n6- Rain\n'))
+        '4- Wheater temperature\n5- Wind speed\n6- Rain\n7- Gas furnace\n'))
     except ValueError:
         dataset = PLANT_IDENTIFICATION
 
     dim = -1
     N_default = 4
+    columns_ts = None
 
     if dataset == PLANT_IDENTIFICATION:
         sites = ['Default']
@@ -83,13 +87,14 @@ def read_parameters():
         sigma_default = 0.1
         delta_default = 30        
         rho_default = 0.1
+        columns_ts = [1]
     elif dataset == MACKEY_GLASS:
         sites = ['Default']
         input_path_default = '../data/Mackey_Glass/'
         experiment_name = 'Mackey Glass'
 
-        sigma_default = 0
-        delta_default = 20
+        sigma_default = 0.127
+        delta_default = 7
         rho_default = 0
         N_default = 3
     elif dataset == SP_500:
@@ -125,7 +130,7 @@ def read_parameters():
         delta_default = 50
         N_default = 24
         rho_default = 1
-    else:
+    elif dataset == RAIN:
         if mode == TRAINING:
             sites = [str(i) for i in range(1, 82, 5)]
         else:
@@ -139,6 +144,16 @@ def read_parameters():
         delta_default = 48
         rho_default = 1
         N_default = 24
+    else:
+        sites = ['Default']
+        input_path_default = '../data/gas-furnace/'
+        experiment_name = 'GAS FURNACE'
+
+        sigma_default = 0.44080700514
+        delta_default = 37
+        rho_default = 0.01938328055
+        N_default = 1
+        columns_ts = [0]
 
     input_path = input('Enter the dataset path (default = ' + input_path_default + '): ')
     if input_path == '':
@@ -188,9 +203,9 @@ def read_parameters():
     else:
         plot_frequency = -1
     
-    return [algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma, delta, N, rho, register_experiment, plot_frequency]
+    return [algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma, delta, N, rho, register_experiment, plot_frequency, columns_ts]
 
-def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma, delta, N, rho, register_experiment, plot_frequency):
+def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma, delta, N, rho, register_experiment, plot_frequency, columns_ts):
     mlflow.set_experiment(experiment_name)
 
     if rho is None:
@@ -244,7 +259,7 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
             if algorithm == MTL:
                 mlflow.log_param("rho", rho)
 
-        model = EVeP(sigma, delta, N, rho)
+        model = EVeP(sigma, delta, N, rho, columns_ts)
 
         predictions = np.zeros((y.shape[0], 1))
         number_of_rules = np.zeros((y.shape[0], 1))        
@@ -257,11 +272,7 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
             # Saving statistics for the step i
             number_of_rules[i, 0] = model.c
             
-            if i == 0:
-                RMSE[i, 0] = sqrt(mean_squared_error(y[:i+1], predictions[:i+1]))
-            else:
-                # Desconsider the first prediction because there was no previous model 
-                RMSE[i, 0] = sqrt(mean_squared_error(y[1:i+1], predictions[1:i+1]))
+            RMSE[i, 0] = sqrt(mean_squared_error(y[:i+1], predictions[:i+1]))
 
             if plot_frequency != -1: 
                 if len(plot_frequency) == 1:
@@ -271,11 +282,14 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
                     model.plot(artifact_uri + str(i) + '_input.png', artifact_uri + str(i) + '_output.png')
 
         if register_experiment:
+            error = (y - predictions[:, 0]).reshape(-1, 1)
             np.savetxt(artifact_uri + 'predictions.csv', predictions)
-            np.savetxt(artifact_uri + 'rules.csv', number_of_rules)            
+            np.savetxt(artifact_uri + 'rules.csv', number_of_rules)
+            np.savetxt(artifact_uri + 'error.csv', error)
 
             plot_graph(number_of_rules, 'Number of rules', 'Step', artifact_uri + 'rules.png')
             plot_graph(RMSE, 'RMSE', 'Step', artifact_uri + 'RMSE.png')
+            plot_graph(error, 'Error', 'Step', artifact_uri + 'Error.png')
             plot_graph(y, 'Prediction', 'Step', artifact_uri + 'predictions.png', predictions, "y", "p")        
 
             mlflow.log_metric('RMSE', RMSE[-1, 0])
@@ -295,13 +309,17 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
             mlflow.end_run()        
 
 if __name__ == "__main__":
-    [algorithm, dataset, mode, site, input_path, experiment_name, dim, sigmas, refresh_rates, window_sizes, rho_1s, register_experiment, plot_frequency] = read_parameters()
+    warnings.filterwarnings("ignore")
+    abspath = os.path.abspath(__file__)
+    os.chdir(os.path.dirname(abspath)) 
+
+    [algorithm, dataset, mode, site, input_path, experiment_name, dim, sigmas, refresh_rates, window_sizes, rho_1s, register_experiment, plot_frequency, columns_ts] = read_parameters()
 
     for sigma in sigmas:
         for delta in refresh_rates:
             for N in window_sizes:
                 if algorithm == MTL:
                     for rho in rho_1s:
-                        run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, delta, N, rho, register_experiment, plot_frequency)
+                        run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, delta, N, rho, register_experiment, plot_frequency, columns_ts)
                 else:
-                    run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, delta, N, rho_1s, register_experiment, plot_frequency)
+                    run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, delta, N, rho_1s, register_experiment, plot_frequency, columns_ts)
