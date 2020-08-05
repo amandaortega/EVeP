@@ -47,8 +47,7 @@ class RMSE(object):
             predictions[i, 0] = model.predict(self.X[i, :].reshape(1, -1))
             model.train(self.X[i, :].reshape(1, -1), self.y[i].reshape(1, -1), np.array([[i]]))
             
-        # Desconsider the first prediction because there was no previous model 
-        return sqrt(mean_squared_error(self.y[1:i+1], predictions[1:i+1]))    
+        return mean_squared_error(self.y, predictions, squared=False)
 
 sampler = optuna.samplers.TPESampler(seed=10)
 
@@ -58,7 +57,17 @@ sampler = optuna.samplers.TPESampler(seed=10)
 # #study.optimize(RMSE(path, 0, 0.3, 1, 50, 1, 5, 1e-5, 1e2), n_trials=100)
 # study.optimize(RMSE(path, 0, 0.3, 1, 50, 1, 5, None, None), n_trials=100)
 
-path = '../data/gas-furnace/'
-#study = optuna.create_study(sampler=sampler, study_name='gas-furnace_training_ls', storage='sqlite:///gas-furnace_ls.db', load_if_exists=True)
-study = optuna.create_study(sampler=sampler, study_name='gas-furnace_training', storage='sqlite:///gas-furnace.db', load_if_exists=True)
-study.optimize(RMSE(path, 0, 0.5, 1, 50, 1, 5, 1e-5, 1e3), n_trials=100)
+# path = '../data/gas-furnace/'
+# #study = optuna.create_study(sampler=sampler, study_name='gas-furnace_training_ls', storage='sqlite:///gas-furnace_ls.db', load_if_exists=True)
+# study = optuna.create_study(sampler=sampler, study_name='gas-furnace_training', storage='sqlite:///gas-furnace.db', load_if_exists=True)
+# #study.optimize(RMSE(path, 0, 1, 1, 50, 1, 5, None, None, [0]), n_trials=100)
+# study.optimize(RMSE(path, 0, 0.5, 1, 50, 1, 5, 1e-2, 1e3, [0]), n_trials=100)
+
+path = '../data/nonlinear_system_identification_2/'
+#study = optuna.create_study(sampler=sampler, study_name='nonlinear2_training_ls', storage='sqlite:///nonlinear2_ls.db', load_if_exists=True)
+study = optuna.create_study(sampler=sampler, study_name='nonlinear2_training', storage='sqlite:///nonlinear2.db', load_if_exists=True)
+
+#0.09864406326055135 with parameters: {'N': 4, 'delta': 25, 'sigma': 0.22690257364319633}
+#study.optimize(RMSE(path, 0, 0.5, 1, 50, 1, 5, None, None, [0,1]), n_trials=100)
+
+study.optimize(RMSE(path, 0, 0.5, 1, 50, 1, 5, 1e-5, 1e3, [0,1]), n_trials=100)

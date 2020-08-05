@@ -17,6 +17,7 @@ TEMPERATURE = 4
 WIND = 5
 RAIN = 6
 GAS_FURNACE = 7
+SYSTEM_IDENTIFICATION_2 = 8
 
 # algorithm versions
 LS = 0
@@ -32,7 +33,7 @@ def read_csv(file, dataset):
 
     if dataset in [TEMPERATURE, PLANT_IDENTIFICATION, MACKEY_GLASS, SP_500, RAIN]:
         delimiter = ','
-    elif dataset in [WIND, GAS_FURNACE]:
+    elif dataset in [WIND, GAS_FURNACE, SYSTEM_IDENTIFICATION_2]:
         delimiter = ' '
 
     with open(file, newline='') as csvfile:
@@ -70,7 +71,7 @@ def read_parameters():
     try:
         dataset = int(input('Enter the dataset to be tested:\n1- Nonlinear Dynamic Plant Identification With Time-Varying Characteristics (default)\n' + 
         '2- Mackey–Glass Chaotic Time Series (Long-Term Prediction)\n3- Online Prediction of S&P 500 Daily Closing Price\n' + 
-        '4- Wheater temperature\n5- Wind speed\n6- Rain\n7- Gas furnace\n'))
+        '4- Wheater temperature\n5- Wind speed\n6- Rain\n7- Gas furnace\n8- Nonlinear System Identification 2\n'))
     except ValueError:
         dataset = PLANT_IDENTIFICATION
 
@@ -144,16 +145,26 @@ def read_parameters():
         delta_default = 48
         rho_default = 1
         N_default = 24
-    else:
+    elif dataset == GAS_FURNACE:
         sites = ['Default']
         input_path_default = '../data/gas-furnace/'
         experiment_name = 'GAS FURNACE'
 
-        sigma_default = 0.44080700514
-        delta_default = 37
-        rho_default = 0.01938328055
-        N_default = 1
+        sigma_default = 0.092
+        delta_default = 36
+        rho_default = 2.009
+        N_default = 4
         columns_ts = [0]
+    else:
+        sites = ['Default']
+        input_path_default = '../data/nonlinear_system_identification_2/'
+        experiment_name = 'System Identification 2'
+
+        sigma_default = 0.46335436826088483
+        delta_default = 49
+        rho_default = 0.00151647123898134
+        N_default = 4
+        columns_ts = [2]
 
     input_path = input('Enter the dataset path (default = ' + input_path_default + '): ')
     if input_path == '':
@@ -272,7 +283,7 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
             # Saving statistics for the step i
             number_of_rules[i, 0] = model.c
             
-            RMSE[i, 0] = sqrt(mean_squared_error(y[:i+1], predictions[:i+1]))
+            RMSE[i, 0] = mean_squared_error(y[:i+1], predictions[:i+1], squared=False)
 
             if plot_frequency != -1: 
                 if len(plot_frequency) == 1:
