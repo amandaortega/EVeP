@@ -18,6 +18,7 @@ WIND = 5
 RAIN = 6
 GAS_FURNACE = 7
 SYSTEM_IDENTIFICATION_2 = 8
+AUTO_MPG = 9
 
 # algorithm versions
 LS = 0
@@ -33,7 +34,7 @@ def read_csv(file, dataset):
 
     if dataset in [TEMPERATURE, PLANT_IDENTIFICATION, MACKEY_GLASS, SP_500, RAIN]:
         delimiter = ','
-    elif dataset in [WIND, GAS_FURNACE, SYSTEM_IDENTIFICATION_2]:
+    elif dataset in [WIND, GAS_FURNACE, SYSTEM_IDENTIFICATION_2, AUTO_MPG]:
         delimiter = ' '
 
     with open(file, newline='') as csvfile:
@@ -71,7 +72,7 @@ def read_parameters():
     try:
         dataset = int(input('Enter the dataset to be tested:\n1- Nonlinear Dynamic Plant Identification With Time-Varying Characteristics (default)\n' + 
         '2- Mackey–Glass Chaotic Time Series (Long-Term Prediction)\n3- Online Prediction of S&P 500 Daily Closing Price\n' + 
-        '4- Wheater temperature\n5- Wind speed\n6- Rain\n7- Gas furnace\n8- Nonlinear System Identification 2\n'))
+        '4- Wheater temperature\n5- Wind speed\n6- Rain\n7- Gas furnace\n8- Nonlinear System Identification 2\n9- Auto-MPG\n'))
     except ValueError:
         dataset = PLANT_IDENTIFICATION
 
@@ -155,7 +156,7 @@ def read_parameters():
         rho_default = 2.009
         N_default = 4
         columns_ts = [0]
-    else:
+    elif dataset == SYSTEM_IDENTIFICATION_2:
         sites = ['Default']
         input_path_default = '../data/nonlinear_system_identification_2/'
         experiment_name = 'System Identification 2'
@@ -165,6 +166,16 @@ def read_parameters():
         rho_default = 0.00151647123898134
         N_default = 4
         columns_ts = [2]
+    elif dataset == AUTO_MPG:
+        sites = ['Default']
+        input_path_default = '../data/auto-mpg/'
+        experiment_name = 'Auto-MPG'
+
+        sigma_default = 0.39714946818711083
+        delta_default = 45
+        rho_default = 0.14619471387405494
+        N_default = 5
+        columns_ts = [0,1,2,3,4,5]        
 
     input_path = input('Enter the dataset path (default = ' + input_path_default + '): ')
     if input_path == '':
