@@ -19,6 +19,9 @@ RAIN = 6
 GAS_FURNACE = 7
 SYSTEM_IDENTIFICATION_2 = 8
 AUTO_MPG = 9
+AUTOS = 10
+AILERONS = 11
+TRIAZINES = 12
 
 # algorithm versions
 LS = 0
@@ -32,13 +35,11 @@ TEST = 1
 def read_csv(file, dataset):
     database = []
 
-    if dataset in [TEMPERATURE, PLANT_IDENTIFICATION, MACKEY_GLASS, SP_500, RAIN]:
-        delimiter = ','
-    elif dataset in [WIND, GAS_FURNACE, SYSTEM_IDENTIFICATION_2, AUTO_MPG]:
-        delimiter = ' '
-
     with open(file, newline='') as csvfile:
-        spamreader = csv.reader(csvfile, delimiter=delimiter, quotechar='|')
+        try:
+            spamreader = csv.reader(csvfile, delimiter=' ', quotechar='|')
+        except Exception:
+            spamreader = csv.reader(csvfile, delimiter=',', quotechar='|')
         for row in spamreader:
             database.append(row)
 
@@ -72,7 +73,7 @@ def read_parameters():
     try:
         dataset = int(input('Enter the dataset to be tested:\n1- Nonlinear Dynamic Plant Identification With Time-Varying Characteristics (default)\n' + 
         '2- Mackey–Glass Chaotic Time Series (Long-Term Prediction)\n3- Online Prediction of S&P 500 Daily Closing Price\n' + 
-        '4- Wheater temperature\n5- Wind speed\n6- Rain\n7- Gas furnace\n8- Nonlinear System Identification 2\n9- Auto-MPG\n'))
+        '4- Wheater temperature\n5- Wind speed\n6- Rain\n7- Gas furnace\n8- Nonlinear System Identification 2\n9- Auto-MPG\n10- Autos\n11- Ailerons\n12- Triazines\n'))
     except ValueError:
         dataset = PLANT_IDENTIFICATION
 
@@ -175,7 +176,37 @@ def read_parameters():
         delta_default = 45
         rho_default = 0.14619471387405494
         N_default = 5
-        columns_ts = [0,1,2,3,4,5]        
+        columns_ts = [0,1,2,3,4,5]     
+    elif dataset == AUTOS:
+        sites = ['Default']
+        input_path_default = '../data/autos/'
+        experiment_name = 'Autos'
+
+        sigma_default = 0.33357519994109935
+        delta_default = 42
+        rho_default = None
+        N_default = 3
+        columns_ts = None
+    elif dataset == AILERONS:
+        sites = ['Default']
+        input_path_default = '../data/ailerons/'
+        experiment_name = 'Ailerons'
+
+        sigma_default = 0.09751084208345344
+        delta_default = 76
+        rho_default = 7.70706402417412
+        N_default = 20
+        columns_ts = None    
+    elif dataset == TRIAZINES:
+        sites = ['Default']
+        input_path_default = '../data/triazines/'
+        experiment_name = 'Triazines'
+
+        sigma_default = 0.5592945079033025
+        delta_default = 29
+        rho_default = 0.001397724761260415
+        N_default = 6
+        columns_ts = None                
 
     input_path = input('Enter the dataset path (default = ' + input_path_default + '): ')
     if input_path == '':

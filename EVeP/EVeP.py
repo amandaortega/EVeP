@@ -258,6 +258,8 @@ class EVeP(object):
             den = den + self.firing_degree(i, x, p)
 
         if den == 0:
+            if self.columns_ts is None:
+                return np.mean(x)
             return np.mean(x[:, self.columns_ts])
 
         return num / den
