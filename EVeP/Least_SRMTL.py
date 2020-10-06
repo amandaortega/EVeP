@@ -43,17 +43,17 @@ class Least_SRMTL(object):
         self.funcVal = None
         self.W = None
     
-    def funVal_eval(self, X, Y, W, R):
+    def funVal_eval(self, X, Y, W):
         funcVal = 0
 
         for i in range(self.t):
             funcVal = funcVal + 0.5 * np.linalg.norm(Y[i] - X[i].T @ W[:, i].reshape(-1, 1)) ** 2
 
-        if R is None:
+        if self.R is None:
             return funcVal + self.rho_3 * np.linalg.norm(W, 'fro') ** 2
-        return funcVal + self.rho_1 * np.linalg.norm(W @ R, 'fro') ** 2 + self.rho_3 * np.linalg.norm(W, 'fro') ** 2
+        return funcVal + self.rho_1 * np.linalg.norm(W @ self.R, 'fro') ** 2 + self.rho_3 * np.linalg.norm(W, 'fro') ** 2
 
-    def gradVal_eval(self, X, XY, RRt, W):
+    def gradVal_eval(self, X, XY, W):
         grad_W = np.zeros((X[0].shape[0], self.t))
 
         for t_ii in range(self.t):
@@ -61,9 +61,9 @@ class Least_SRMTL(object):
             XTXWi = X[t_ii] @ XWi
             grad_W[:, t_ii] = XTXWi - XY[t_ii].reshape(-1)
 
-        if RRt is None:
+        if self.RRt is None:
             return grad_W + self.rho_3 * 2 * W
-        return grad_W + self.rho_1 * 2 *  W @ RRt + self.rho_3 * 2 * W
+        return grad_W + self.rho_1 * 2 *  W @ self.RRt + self.rho_3 * 2 * W
 
     # Calculates argmin_z = \|z-v\|_2^2 + beta \|z\|_1 
     # z: solution, l1_comp_val: value of l1 component (\|z\|_1)
@@ -85,7 +85,15 @@ class Least_SRMTL(object):
         
         return X
 
-    def train(self, X, Y, R, init_theta=2):
+    def set_RRt(self, R):
+        # precomputation        
+        if R is None:
+            self.RRt = None
+        else:
+            self.RRt = R @ R.T
+        self.R = R
+
+    def train(self, X, Y, init_theta=2):
         self.funcVal = list()
         X = X.copy()
 
@@ -96,13 +104,6 @@ class Least_SRMTL(object):
             W0 = np.zeros((X[0].shape[1] + 1, self.t))
         
         X = self.multi_transpose(X)
-
-        # ToDo: Calcular RRt apenas quando R foi alterado
-        # precomputation        
-        if R is None:
-            RRt = None
-        else:
-            RRt = R @ R.T
         XY = list()
 
         for t_idx in range(self.t):
@@ -126,12 +127,12 @@ class Least_SRMTL(object):
             Ws = (1 + alpha) * Wz - alpha * Wz_old
 
             # compute the function value and gradients of the search point
-            gWs = self.gradVal_eval(X, XY, RRt, Ws)
-            Fs = self.funVal_eval(X, Y, Ws, R)
+            gWs = self.gradVal_eval(X, XY, Ws)
+            Fs = self.funVal_eval(X, Y, Ws)
 
             while True:
                 [Wzp, l1c_wzp] = self.l1_projection(Ws - gWs / gamma, 2 * self.rho_2 / gamma)
-                Fzp = self.funVal_eval(X, Y, Wzp, R)
+                Fzp = self.funVal_eval(X, Y, Wzp)
                 
                 delta_Wzp = Wzp - Ws
                 r_sum = np.linalg.norm(delta_Wzp, ord='fro') ** 2
