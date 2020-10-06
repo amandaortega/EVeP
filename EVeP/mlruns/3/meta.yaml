@@ -1,4 +1,4 @@
-artifact_location: file:///home/amanda/Dropbox/trabalho/codigos/propostas/EVeP/EVeP/mlruns/3
+artifact_location: file:///home/amanda/trabalho/codigos/propostas/EVeP/EVeP/mlruns/3
 experiment_id: '3'
 lifecycle_stage: active
 name: SP 500 Daily Closing Price

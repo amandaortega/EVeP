@@ -1,4 +1,4 @@
-artifact_location: file:///home/amanda/Dropbox/trabalho/codigos/propostas/EVeP/EVeP/mlruns/1
+artifact_location: file:///home/amanda/trabalho/codigos/propostas/EVeP/EVeP/mlruns/1
 experiment_id: '1'
 lifecycle_stage: active
 name: Nonlinear Dynamic Plant Identification With Time-Varying Characteristics

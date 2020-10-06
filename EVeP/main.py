@@ -1,11 +1,15 @@
+import matplotlib
+matplotlib.use('Agg')
 import csv
 from EVeP import EVeP
 from math import sqrt
 import matplotlib.pyplot as plt
 import mlflow
 import numpy as np
+from numpy import loadtxt
 import os
 from sklearn.metrics import mean_squared_error
+import time
 from tqdm import tqdm
 import warnings
 
@@ -22,6 +26,8 @@ AUTO_MPG = 9
 AUTOS = 10
 AILERONS = 11
 TRIAZINES = 12
+HELICOPTER = 13
+QUADCOPTER = 14
 
 # algorithm versions
 LS = 0
@@ -32,18 +38,11 @@ VERSION_NAME = ['LS', 'MTL']
 TRAINING = 0
 TEST = 1
 
-def read_csv(file, dataset):
-    database = []
-
-    with open(file, newline='') as csvfile:
-        try:
-            spamreader = csv.reader(csvfile, delimiter=' ', quotechar='|')
-        except Exception:
-            spamreader = csv.reader(csvfile, delimiter=',', quotechar='|')
-        for row in spamreader:
-            database.append(row)
-
-    return np.asarray(database).astype('float')
+def read_csv(file):
+    try:
+        return loadtxt(file)
+    except Exception:
+        return loadtxt(file, delimiter=',')
 
 def plot_graph(y, y_label, x_label, file_name, y_aux=None, legend=None, legend_aux=None):
     plt.plot(y)
@@ -73,7 +72,7 @@ def read_parameters():
     try:
         dataset = int(input('Enter the dataset to be tested:\n1- Nonlinear Dynamic Plant Identification With Time-Varying Characteristics (default)\n' + 
         '2- Mackey–Glass Chaotic Time Series (Long-Term Prediction)\n3- Online Prediction of S&P 500 Daily Closing Price\n' + 
-        '4- Wheater temperature\n5- Wind speed\n6- Rain\n7- Gas furnace\n8- Nonlinear System Identification 2\n9- Auto-MPG\n10- Autos\n11- Ailerons\n12- Triazines\n'))
+        '4- Wheater temperature\n5- Wind speed\n6- Rain\n7- Gas furnace\n8- Nonlinear System Identification 2\n9- Auto-MPG\n10- Autos\n11- Ailerons\n12- Triazines\n13- Helicopter\n14- Quadcopter\n'))
     except ValueError:
         dataset = PLANT_IDENTIFICATION
 
@@ -87,10 +86,10 @@ def read_parameters():
         experiment_name = 'Nonlinear Dynamic Plant Identification With Time-Varying Characteristics'
 
         dim = 2
-        sigma_default = 0.1
-        delta_default = 30        
-        rho_default = 0.1
-        columns_ts = [1]
+        sigma_default = 0.3656
+        delta_default = 6    
+        rho_default = 0.0142
+        N_default = 2
     elif dataset == MACKEY_GLASS:
         sites = ['Default']
         input_path_default = '../data/Mackey_Glass/'
@@ -105,13 +104,13 @@ def read_parameters():
         input_path_default = '../data/SP_500_Daily_Closing_Price/'
         experiment_name = 'SP 500 Daily Closing Price'
 
-        sigma_default = 0.6
-        delta_default = 2
-        rho_default = 0.1
+        sigma_default = 0.001346
+        delta_default = 33
+        rho_default = 0.002251
         N_default = 2
     elif dataset == TEMPERATURE:
         sites = ["DeathValley", "Ottawa", "Lisbon"]
-        input_path_default = '/home/amanda/Dropbox/trabalho/testes/aplicacoes/temperatura/data/'
+        input_path_default = '/home/amanda/trabalho/testes/aplicacoes/temperatura/data/'
         experiment_name = 'Wheater temperature'
 
         dim = 12
@@ -139,7 +138,7 @@ def read_parameters():
         else:
             sites = [str(i) for i in range(1, 87)]
 
-        input_path_default = '/home/amanda/Dropbox/trabalho/testes/aplicacoes/precipitacao/data/'
+        input_path_default = '/home/amanda/trabalho/testes/aplicacoes/precipitacao/data/'
         experiment_name = 'Rain'
 
         dim = 2
@@ -206,6 +205,27 @@ def read_parameters():
         delta_default = 29
         rho_default = 0.001397724761260415
         N_default = 6
+        columns_ts = None
+    elif dataset == HELICOPTER:
+        sites = ['Default']
+        input_path_default = '../data/helicopter/'
+        experiment_name = 'Helicopter'
+
+        dim = 2
+        sigma_default = 0.17708401024344578
+        delta_default = 70
+        rho_default = 0.026198431763058968
+        N_default = 11
+        columns_ts = None        
+    elif dataset == QUADCOPTER:
+        sites = ['Default']
+        input_path_default = '../data/quadcopter/'
+        experiment_name = 'Quadcopter'
+
+        sigma_default = 0.07293324544725474
+        delta_default = 14
+        rho_default = 89.64893403045699
+        N_default = 13
         columns_ts = None                
 
     input_path = input('Enter the dataset path (default = ' + input_path_default + '): ')
@@ -274,11 +294,11 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
             path = input_path
 
         if mode == TRAINING:
-            X = read_csv(path + 'X_train.csv', dataset)
-            y = read_csv(path + 'Y_train.csv', dataset).reshape(-1)
+            X = read_csv(path + 'X_train.csv')
+            y = read_csv(path + 'Y_train.csv').reshape(-1)
         else:
-            X = read_csv(path + 'X_test.csv', dataset)
-            y = read_csv(path + 'Y_test.csv', dataset).reshape(-1)               
+            X = read_csv(path + 'X_test.csv')
+            y = read_csv(path + 'Y_test.csv').reshape(-1)               
 
         dim = X.shape[1]
 
@@ -315,12 +335,16 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
         model = EVeP(sigma, delta, N, rho, columns_ts)
 
         predictions = np.zeros((y.shape[0], 1))
-        number_of_rules = np.zeros((y.shape[0], 1))        
+        number_of_rules = np.zeros((y.shape[0], 1))
         RMSE = np.zeros((y.shape[0], 1))
+        time_ = np.zeros((y.shape[0], 1))
 
         for i in tqdm(range(y.shape[0])):
+            start = time.time()
             predictions[i, 0] = model.predict(X[i, :].reshape(1, -1))
             model.train(X[i, :].reshape(1, -1), y[i].reshape(1, -1), np.array([[i]]))
+            end = time.time()
+            time_[i, 0] = end - start
 
             # Saving statistics for the step i
             number_of_rules[i, 0] = model.c
@@ -330,15 +354,16 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
             if plot_frequency != -1: 
                 if len(plot_frequency) == 1:
                     if (i % plot_frequency[0]) == 0:
-                        model.plot(artifact_uri + str(i) + '_input.png', artifact_uri + str(i) + '_output.png')
+                        model.plot(artifact_uri + str(i) + '_input.png', artifact_uri + str(i) + '_output.png', i)
                 elif i in plot_frequency:
-                    model.plot(artifact_uri + str(i) + '_input.png', artifact_uri + str(i) + '_output.png')
+                    model.plot(artifact_uri + str(i) + '_input.png', artifact_uri + str(i) + '_output.png', i)
 
         if register_experiment:
             error = (y - predictions[:, 0]).reshape(-1, 1)
             np.savetxt(artifact_uri + 'predictions.csv', predictions)
             np.savetxt(artifact_uri + 'rules.csv', number_of_rules)
             np.savetxt(artifact_uri + 'error.csv', error)
+            np.savetxt(artifact_uri + 'time.csv', time_)
 
             plot_graph(number_of_rules, 'Number of rules', 'Step', artifact_uri + 'rules.png')
             plot_graph(RMSE, 'RMSE', 'Step', artifact_uri + 'RMSE.png')

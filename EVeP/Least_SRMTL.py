@@ -97,6 +97,7 @@ class Least_SRMTL(object):
         
         X = self.multi_transpose(X)
 
+        # ToDo: Calcular RRt apenas quando R foi alterado
         # precomputation        
         if R is None:
             RRt = None
