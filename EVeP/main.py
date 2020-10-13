@@ -107,7 +107,7 @@ def read_parameters():
         sigma_default = 0.001346
         delta_default = 33
         rho_default = 0.002251
-        N_default = 2
+        N_default = 1
     elif dataset == TEMPERATURE:
         sites = ["DeathValley", "Ottawa", "Lisbon"]
         input_path_default = '/home/amanda/trabalho/testes/aplicacoes/temperatura/data/'
@@ -128,10 +128,10 @@ def read_parameters():
         experiment_name = 'Wind speed'  
 
         dim = 2
-        sigma_default = 0.2
-        delta_default = 50
-        N_default = 24
-        rho_default = 1
+        sigma_default = 0.2997
+        delta_default = 85
+        N_default = 23
+        rho_default = 2.0118
     elif dataset == RAIN:
         if mode == TRAINING:
             sites = [str(i) for i in range(1, 82, 5)]

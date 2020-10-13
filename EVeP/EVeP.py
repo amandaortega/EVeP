@@ -179,19 +179,6 @@ class EVeP(object):
         z_bottom = -0.3
         ax.set_zticklabels("")     
 
-        # legend = []
-
-        # if step == 1008:
-        #     colors = cm.get_cmap('Dark2', 3)
-        #     self.plot_EV_input(0, ax, '.', colors(2), z_bottom)
-        #     legend.append('$\lambda$ = ' + str(round(self.mr_x[0].get_params()[0], 1)) + ' $\kappa$ = ' + str(round(self.mr_x[0].get_params()[1], 1)))
-        # else:
-        #     colors = cm.get_cmap('Dark2', self.c)
-        #     new_order = (np.array(self.y0).reshape(1, -1)).argsort().reshape(-1)
-
-        #     for i in range(self.c):
-        #         self.plot_EV_input(new_order[i], ax, '.', colors(i), z_bottom)
-        #         legend.append('$\lambda$ = ' + str(round(self.mr_x[new_order[i]].get_params()[0], 1)) + ' $\kappa$ = ' + str(round(self.mr_x[new_order[i]].get_params()[1], 1)))        
         colors = cm.get_cmap('Dark2', self.c)
 
         for i in range(self.c):
@@ -215,15 +202,6 @@ class EVeP(object):
         ax = fig.add_subplot(111)
         ax.axes.set_xlim(left=-2, right=2)
 
-# """         legend = []
-
-#         if step == 1008:
-#             self.plot_EV_output(0, ax, '.', colors(2), z_bottom)
-#             legend.append('$\lambda$ = ' + str(round(self.mr_y[0].get_params()[0], 1)) + ' $\kappa$ = ' + str(round(self.mr_y[0].get_params()[1], 1)))
-#         else:
-#             for i in range(self.c):
-#                 self.plot_EV_output(new_order[i], ax, '.', colors(i), z_bottom)
-#                 legend.append('$\lambda$ = ' + str(round(self.mr_y[new_order[i]].get_params()[0], 1)) + ' $\kappa$ = ' + str(round(self.mr_y[new_order[i]].get_params()[1], 1))) """      
         for i in range(self.c):
             self.plot_EV_output(i, ax, '.', colors(i), z_bottom)        
 
