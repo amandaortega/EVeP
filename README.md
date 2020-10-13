@@ -14,7 +14,7 @@ Please cite EVeP in your publications if it helps your research:
 Running
 =======
 
-EVeP was implemented with Python 3.6. After installing the prerequisites, you can run the file main.py.
+EVeP was implemented with Python 3.6. After installing the prerequisites, you can run the file main.py or call the class EVeP.py.
 
 Prerequisites
 -------------
