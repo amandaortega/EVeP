@@ -21,22 +21,13 @@ Prerequisites
 
 - libMR - Library for Meta-Recognition and Weibull based calibration of SVMdata. Used to apply the methods founded on the Extreme Value Theory. Available at https://pypi.org/project/libmr/. More information can be found in Scheirer, W. J., Rocha, A., Micheals, R. J., & Boult, T. E. (2011). Meta-recognition: The theory and practice of recognition score analysis. IEEE transactions on pattern analysis and machine intelligence, 33(8), 1689-1695. To install: pip install libmr
 
-- MLflow - Open source platform to manage the ML lifecycle. Used to generate the results of the experiments. Available at https://mlflow.org/. To install: pip install mlflow
-
 - sklearn: pip3 install sklearn
+
+If running main.py, also install:
 
 - tqdm: pip install tqdm
 
-Project layout
---------------
-
-- EVeP: Python codes
-- EVeP/mlruns: Results of the experiments
-- EVeP/mlruns/1: Nonlinear Dynamic Plant Identification With Time-Varying Characteristics
-- EVeP/mlruns/2: Mackey Glass
-- EVeP/mlruns/3: SP 500 Daily Closing Price
-- EVeP/mlruns/4: Wind speed
-- data: Time series datasets used to test EVeP
+- MLflow - Open source platform to manage the ML lifecycle. Used to generate the results of the experiments. Available at https://mlflow.org/. To install: pip install mlflow
 
 Contributor
 ===========
