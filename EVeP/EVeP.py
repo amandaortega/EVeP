@@ -23,7 +23,7 @@ class EVeP(object):
     """
 
     # Model initialization
-    def __init__(self, sigma=0.5, delta=50, N=np.Inf, rho=None, columns_ts=None):        
+    def __init__(self, sigma=0.5, delta=50, N=np.Inf, rho=None, columns_ts=None):
         # Setting EVM algorithm parameters
         self.sigma = sigma
         self.tau = 99999

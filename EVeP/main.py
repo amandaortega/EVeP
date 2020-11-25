@@ -232,6 +232,11 @@ def read_parameters():
     if input_path == '':
         input_path = input_path_default
 
+    try:
+        steps_ahead = int(input('Enter the number of steps ahead: '))
+    except ValueError:
+        steps_ahead = 1
+
     experiment_name_complement = input('Add a complement for the experiment name (default = None): ')
     if experiment_name_complement != '':
         experiment_name = experiment_name + " - " + experiment_name_complement    
@@ -276,9 +281,9 @@ def read_parameters():
     else:
         plot_frequency = -1
     
-    return [algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma, delta, N, rho, register_experiment, plot_frequency, columns_ts]
+    return [algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma, delta, N, rho, register_experiment, plot_frequency, columns_ts, steps_ahead]
 
-def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma, delta, N, rho, register_experiment, plot_frequency, columns_ts):
+def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma, delta, N, rho, register_experiment, plot_frequency, columns_ts, steps_ahead):
     mlflow.set_experiment(experiment_name)
 
     if rho is None:
@@ -338,11 +343,17 @@ def run(algorithm, dataset, mode, sites, input_path, experiment_name, dim, sigma
         number_of_rules = np.zeros((y.shape[0], 1))
         RMSE = np.zeros((y.shape[0], 1))
         time_ = np.zeros((y.shape[0], 1))
+        queue_X = []
+        queue_Y = []
 
         for i in tqdm(range(y.shape[0])):
             start = time.time()
             predictions[i, 0] = model.predict(X[i, :].reshape(1, -1))
-            model.train(X[i, :].reshape(1, -1), y[i].reshape(1, -1), np.array([[i]]))
+            queue_X.append(X[i, :].reshape(1, -1)), queue_Y.append(y[i].reshape(1, -1))
+
+            if i >= steps_ahead - 1:
+                model.train(queue_X.pop(0).reshape(1, -1), queue_Y.pop(0).reshape(1, -1), np.array([[i]]))
+
             end = time.time()
             time_[i, 0] = end - start
 
@@ -391,13 +402,13 @@ if __name__ == "__main__":
     abspath = os.path.abspath(__file__)
     os.chdir(os.path.dirname(abspath)) 
 
-    [algorithm, dataset, mode, site, input_path, experiment_name, dim, sigmas, refresh_rates, window_sizes, rho_1s, register_experiment, plot_frequency, columns_ts] = read_parameters()
+    [algorithm, dataset, mode, site, input_path, experiment_name, dim, sigmas, refresh_rates, window_sizes, rho_1s, register_experiment, plot_frequency, columns_ts, steps_ahead] = read_parameters()
 
     for sigma in sigmas:
         for delta in refresh_rates:
             for N in window_sizes:
                 if algorithm == MTL:
                     for rho in rho_1s:
-                        run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, delta, N, rho, register_experiment, plot_frequency, columns_ts)
+                        run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, delta, N, rho, register_experiment, plot_frequency, columns_ts, steps_ahead)
                 else:
-                    run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, delta, N, rho_1s, register_experiment, plot_frequency, columns_ts)
+                    run(algorithm, dataset, mode, site, input_path, experiment_name, dim, sigma, delta, N, rho_1s, register_experiment, plot_frequency, columns_ts, steps_ahead)
