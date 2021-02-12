@@ -7,7 +7,7 @@ License
 
 This version of EVeP is released under the MIT license. (see LICENSE.txt).
 
-Submitted to the Transactions on Fuzzy Systems.
+Published in the Transactions on Fuzzy Systems at https://ieeexplore.ieee.org/abstract/document/9291399.
 
 Running
 =======
